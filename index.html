@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR 通報卡</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="no-print">
+    <h1>ADR 通報卡製作</h1>
+    <p class="privacy">資料只在這台電腦的瀏覽器中處理，不會上傳或儲存。</p>
+  </header>
+
+  <main class="no-print">
+    <section class="panel">
+      <label for="paste" class="step">1. 從 HIS / Excel 複製 ADR 清單貼上</label>
+      <textarea id="paste" spellcheck="false"
+        placeholder="病歷號&#9;姓名&#9;藥碼&#9;藥名&#9;嚴重度&#9;通報來源&#9;症狀&#9;得知日期（可含標題列）"></textarea>
+      <div class="controls">
+        <label>起始流水號
+          <input id="startSeq" type="number" min="1" max="99" value="1">
+        </label>
+        <span id="idHint" class="hint"></span>
+        <button id="clearBtn" type="button" class="secondary">清除</button>
+      </div>
+      <ul id="messages" class="messages"></ul>
+    </section>
+
+    <section class="panel">
+      <div class="step-row">
+        <span class="step">2. 確認卡片（點文字可修改，取消勾選則不列印）</span>
+        <span class="actions">
+          <button id="printBtn" type="button" disabled>列印</button>
+          <button id="pngBtn" type="button" class="secondary" disabled>下載 PNG</button>
+        </span>
+      </div>
+    </section>
+  </main>
+
+  <div id="sheet" class="sheet"></div>
+  <div id="printArea" class="print-area"></div>
+
+  <script src="parse.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

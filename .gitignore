@@ -1,0 +1,7 @@
+# Never commit real case data
+*.xlsx
+*.xls
+*.csv
+*.tsv
+ADR_*.png
+node_modules/
