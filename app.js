@@ -75,7 +75,7 @@
       toggle.type = 'checkbox';
       toggle.className = 'include no-print';
       toggle.checked = card.include;
-      toggle.title = '處理此卡';
+      toggle.title = '列印此卡';
       toggle.addEventListener('change', () => {
         card.include = toggle.checked;
         el.classList.toggle('excluded', !card.include);
@@ -117,8 +117,10 @@
     const none = n === 0;
     $('selCount').textContent = cards.length ? `已選 ${n} / ${cards.length} 張` : '';
     $('pdfBtn').disabled = none;
-    $('pngBtn').disabled = none;
-    $('saveBtn').disabled = none || !folder;
+    // Ticks only choose what to print; every case is saved (Excel is the
+    // continuous record, and every 識別碼 needs its PNG for numbering).
+    $('pngBtn').disabled = !cards.length;
+    $('saveBtn').disabled = !cards.length || !folder;
     $('saveBtn').hidden = !folder;
     $('pngBtn').hidden = !!folder;
   }
@@ -194,7 +196,7 @@
 
   // Fallback when no folder is linked.
   async function downloadPngs() {
-    for (const card of selected()) {
+    for (const card of cards) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(await cardBlob(card));
       a.download = `ADR_${card.id}.png`;
@@ -394,12 +396,11 @@
       if (await folder.requestPermission({ mode: 'readwrite' }) !== 'granted') {
         throw new Error('沒有資料夾寫入權限');
       }
-      const chosen = selected();
 
       // 1. Excel: append new rows to the month's sheet.
       const fileHandle = await existingFile(folder, WORKBOOK_NAME);
       const original = fileHandle ? new Uint8Array(await (await fileHandle.getFile()).arrayBuffer()) : null;
-      const result = W.appendRows(window.XLSX, P, original, chosen);
+      const result = W.appendRows(window.XLSX, P, original, cards);
       if (result.added.length) {
         try {
           if (original) await writeFile(folder, WORKBOOK_NAME + '.bak', original);
@@ -417,7 +418,7 @@
       // 2. PNGs: never overwrite an existing card.
       const saved = [];
       const exists = [];
-      for (const card of chosen) {
+      for (const card of cards) {
         const dir = await subfolder('ADR_' + card.id.slice(0, 5), true);
         const name = `ADR_${card.id}.png`;
         if (await existingFile(dir, name)) { exists.push(name); continue; }
@@ -429,7 +430,7 @@
     } catch (e) {
       msgs.push({ cls: 'warn', text: e.message });
     } finally {
-      btn.textContent = '存入 Excel 與 PNG';
+      btn.textContent = '存入 Excel 與 PNG（全部）';
       updateButtons();
       renderList($('saveMessages'), msgs);
     }

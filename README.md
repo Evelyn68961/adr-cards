@@ -12,8 +12,9 @@ and records the cases in the monthly ADR workbook.
 2. Copy the rows from the HIS ADR list (header row included is best) and paste.
 3. **起始流水號** is filled in automatically from the cards already in `ADR_<yyyMM>\`
    (e.g. `ADR_1151001–05.png` there → starts at 06). It can be overridden.
-4. Tick the cards to process (全選 / 全不選); click any value on a card to fix it.
-5. **存入 Excel 與 PNG** appends the ticked rows to `ADR通報.xlsx` and saves `ADR_<識別碼>.png`
+4. Tick the cards to **print** (全選 / 全不選); click any value on a card to fix it.
+5. **存入 Excel 與 PNG（全部）** appends **every** pasted case (ticked or not — the workbook is the
+   continuous record) to `ADR通報.xlsx` and saves `ADR_<識別碼>.png`
    into `ADR_<yyyMM>\`.
 6. **產生 PDF** opens a PDF of the ticked cards, 4 per landscape A4 page, ready to print. With a
    linked folder it is also saved as `ADR_<yyyMM>\ADR_<first>-<last>.pdf`.
