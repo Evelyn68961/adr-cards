@@ -5,3 +5,5 @@
 *.tsv
 ADR_*.png
 node_modules/
+*.pdf
+*.bak

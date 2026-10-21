@@ -72,6 +72,13 @@ button {
 button.secondary { background: transparent; color: var(--accent); }
 button:disabled { opacity: .4; cursor: default; }
 
+.folder-panel { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.folder-panel .step { margin: 0; }
+.folder-status { color: var(--muted); flex: 1; }
+.folder-status.linked { color: var(--ok-text); font-weight: 600; }
+.folder-panel .hint { flex-basis: 100%; margin: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .messages { list-style: none; margin: 10px 0 0; padding: 0; font-size: .9rem; }
 .messages li { padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
 .messages .warn { background: var(--warn-bg); color: var(--warn-text); }

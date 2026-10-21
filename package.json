@@ -3,6 +3,6 @@
   "private": true,
   "description": "Convert pasted HIS ADR rows into printable case cards",
   "scripts": {
-    "test": "node --test tests/parse.test.js"
+    "test": "node --test tests/*.test.js"
   }
 }

@@ -36,12 +36,13 @@ test('cleanSymptom joins with 、', () => {
   assert.equal(P.cleanSymptom('Rash'), 'Rash');
 });
 
-test('parseText skips header and keeps card fields only', () => {
+test('parseText reads the 8-column sheet layout with header', () => {
   const { rows, skipped } = P.parseText(SAMPLE);
   assert.equal(rows.length, 5);
   assert.equal(skipped.length, 0);
-  assert.deepEqual(Object.keys(rows[0]).sort(), ['chartNo', 'date', 'drug', 'source', 'symptom']);
   assert.equal(rows[2].drug, 'Combivent 吸入 2.5 mL');
+  assert.equal(rows[2].drugRaw, '【RT給】Combivent 吸入 2.5 mL');
+  assert.equal(rows[1].severity, '1_輕微');
 });
 
 test('parseText reports rows with a chart number but bad date', () => {
@@ -67,4 +68,47 @@ test('assignIds honours start number; next month restarts at 01', () => {
   ].join('\n');
   const cards = P.assignIds(P.parseText(text).rows, 6);
   assert.deepEqual(cards.map(c => c.id), ['1151006', '1151007', '1151101']);
+});
+
+// Same shape as a real HIS copy: line breaks inside 記錄來源 swallow a tab,
+// 登記日 is empty, and 得知日期 comes from 最後異動時間.
+const HIS_HEADER = '病歷號\t姓名\t藥碼\tMDPNAME\tATC\t藥理分類\t藥理分類名稱\t嚴重程度\t記錄來源\t是否過敏\t登記日\t症狀\t疫苗接種日期\t疫苗接種院所\t最後異動者員編\t最後異動者\t最後異動時間';
+const HIS_ROW = '000000007G\t王小明\tPEN04\tPentop SR 錠劑 400 mg\tC04AD03\t202400\t血液流變性劑\t2_中等\t\n病人/家屬自述\n0_藥物不良反應\t\tPalpitation\t\t\tB00000\t李藥師\t2026/10/20 14:26:51';
+const HIS_ROW2 = '000000008H\t陳小美\tCEF10\tCefin 針【禁用含鈣溶液】2 g/Vial\tJ01DD04\t081204\t頭孢子菌素\t2_中等\t醫療人員提供\t0_藥物不良反應\t\tRash,Eye swelling\t\t\tB00000\t李藥師\t2026/10/14 10:12:15';
+
+function checkPentop(r) {
+  assert.equal(r.chartNo, '000000007G');
+  assert.equal(r.name, '王小明');
+  assert.equal(r.drugCode, 'PEN04');
+  assert.equal(r.drugRaw, 'Pentop SR 錠劑 400 mg');
+  assert.equal(r.severity, '2_中等');
+  assert.equal(r.source, '病人/家屬自述');
+  assert.equal(r.symptom, 'Palpitation');
+  assert.equal(P.formatDateTime(r.date), '2026/10/20 14:26:51');
+}
+
+test('HIS export with header: multi-line records and 最後異動時間', () => {
+  const { rows, skipped } = P.parseText([HIS_HEADER, HIS_ROW, HIS_ROW2].join('\n'));
+  assert.equal(skipped.length, 0);
+  assert.equal(rows.length, 2);
+  checkPentop(rows[0]);
+  assert.equal(rows[1].source, '醫療人員提供');
+  assert.equal(rows[1].symptom, 'Rash、Eye swelling');
+  assert.equal(rows[1].drug, 'Cefin 針 2 g/Vial');
+});
+
+test('HIS export without header is detected by shape', () => {
+  const { rows } = P.parseText([HIS_ROW, HIS_ROW2].join('\r\n'));
+  assert.equal(rows.length, 2);
+  checkPentop(rows[0]);
+  const cards = P.assignIds(rows, 4);
+  assert.deepEqual(cards.map(c => c.id), ['1151004', '1151005']);
+});
+
+test('sheetRow and rowKey match the monthly sheet', () => {
+  const r = P.parseText(HIS_ROW).rows[0];
+  const row = P.sheetRow(r);
+  assert.deepEqual(row.slice(0, 7), ['000000007G', '王小明', 'PEN04', 'Pentop SR 錠劑 400 mg', '2_中等', '病人/家屬自述', 'Palpitation']);
+  assert.equal(P.sheetName(r.date), '202610');
+  assert.equal(P.rowKey(r.chartNo, r.drugCode, r.date), '000000007G|PEN04|2026/10/20 14:26:51');
 });

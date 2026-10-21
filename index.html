@@ -9,14 +9,21 @@
 <body>
   <header class="no-print">
     <h1>ADR 通報卡製作</h1>
-    <p class="privacy">資料只在這台電腦的瀏覽器中處理，不會上傳或儲存。</p>
+    <p class="privacy">資料只在這台電腦的瀏覽器中處理，不會上傳。</p>
   </header>
 
   <main class="no-print">
+    <section class="panel folder-panel">
+      <span class="step">ADR 資料夾</span>
+      <span id="folderStatus" class="folder-status">尚未連結</span>
+      <button id="linkBtn" type="button" class="secondary">連結 ADR 資料夾</button>
+      <p id="folderUnsupported" class="hint" hidden>此瀏覽器無法直接寫入檔案，請改用 Chrome 或 Edge。</p>
+    </section>
+
     <section class="panel">
-      <label for="paste" class="step">1. 從 HIS / Excel 複製 ADR 清單貼上</label>
+      <label for="paste" class="step">1. 從 HIS 複製 ADR 清單貼上（含標題列最好）</label>
       <textarea id="paste" spellcheck="false"
-        placeholder="病歷號&#9;姓名&#9;藥碼&#9;藥名&#9;嚴重度&#9;通報來源&#9;症狀&#9;得知日期（可含標題列）"></textarea>
+        placeholder="病歷號&#9;姓名&#9;藥碼&#9;MDPNAME&#9;ATC&#9;…&#9;最後異動時間"></textarea>
       <div class="controls">
         <label>起始流水號
           <input id="startSeq" type="number" min="1" max="99" value="1">
@@ -29,19 +36,29 @@
 
     <section class="panel">
       <div class="step-row">
-        <span class="step">2. 確認卡片（點文字可修改，取消勾選則不列印）</span>
+        <span class="step">2. 勾選要處理的卡片（點文字可修改）</span>
         <span class="actions">
-          <button id="printBtn" type="button" disabled>列印</button>
+          <button id="saveBtn" type="button" hidden disabled>存入 Excel 與 PNG</button>
           <button id="pngBtn" type="button" class="secondary" disabled>下載 PNG</button>
+          <button id="pdfBtn" type="button" disabled>產生 PDF</button>
         </span>
       </div>
+      <div class="controls">
+        <button id="selAll" type="button" class="secondary">全選</button>
+        <button id="selNone" type="button" class="secondary">全不選</button>
+        <span id="selCount" class="hint"></span>
+      </div>
+      <ul id="saveMessages" class="messages"></ul>
     </section>
   </main>
 
   <div id="sheet" class="sheet"></div>
   <div id="printArea" class="print-area"></div>
 
+  <script src="lib/xlsx.full.min.js"></script>
   <script src="parse.js"></script>
+  <script src="workbook.js"></script>
+  <script src="pdf.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
