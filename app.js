@@ -403,7 +403,7 @@
         rebuild();  // runs suggestStart again, which adds the hint
         return;
       }
-      $('idHint').textContent += `（依 ADR_${key} 已有卡片自動帶入）`;
+      $('idHint').textContent += '（依 Excel 與已有卡片自動帶入）';
     } catch (e) { /* folder unavailable; keep the typed number */ }
   }
 
@@ -415,13 +415,17 @@
   }
 
   async function saveToFolder() {
-    // Not linked yet: link first, then stop so the user can check the start
-    // number (linking may suggest a new one) before anything is written.
-    if (!folder) {
-      if (await linkFolder()) {
-        renderList($('saveMessages'), [{ cls: 'ok', text: '已連結 ADR 資料夾。請確認起始流水號後，再按一次「存入 Excel 與 PNG」。' }]);
-      }
-      return;
+    // One click: link if needed, then number the cards from the folder
+    // (unless the user typed a start number) before writing anything.
+    if (!folder && !await linkFolder()) return;
+    if (!startTouched && cards.length) {
+      try {
+        const seq = await nextSeq(cards[0].id.slice(0, 5));
+        if (Number(startEl.value) !== seq) {
+          startEl.value = seq;
+          rebuild();
+        }
+      } catch (e) { /* keep the shown number */ }
     }
     const btn = $('saveBtn');
     const msgs = [];
@@ -441,7 +445,7 @@
           if (original) await writeFile(folder, WORKBOOK_NAME + '.bak', original);
           await writeFile(folder, WORKBOOK_NAME, result.bytes);
         } catch (e) {
-          throw new Error(`無法寫入 ${WORKBOOK_NAME}，請先關閉 Excel 中的這個檔案再試一次。（${e.name}）`);
+          throw new Error(`無法寫入 ${WORKBOOK_NAME}（若檔案在 Excel 中開著，請先關閉）：${e.name} ${e.message}`);
         }
         const sheets = [...new Set(result.added.map(a => a.sheet))].join('、');
         msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：新增 ${result.added.length} 列到工作表 ${sheets}${original ? '' : '（新建檔案）'}` });
