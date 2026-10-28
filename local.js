@@ -16,7 +16,15 @@
   }
 
   async function call(url, opts = {}) {
-    const res = await fetch(url, Object.assign({ cache: 'no-store', headers: HEADERS }, opts));
+    let res;
+    try {
+      res = await fetch(url, Object.assign({ cache: 'no-store', headers: HEADERS }, opts));
+    } catch (e) {
+      // The helper is not running (closed, or the PC restarted).
+      const err = new Error('本機程式沒有在執行：請雙擊桌面上的「ADR 通報卡」，再按一次存入。');
+      err.name = 'LocalServerDown';
+      throw err;
+    }
     if (res.status === 404) return null;
     if (!res.ok) {
       const e = new Error(await res.text());
