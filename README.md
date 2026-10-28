@@ -12,8 +12,8 @@ folder built in, so nothing ever has to be linked or allowed.
 
 - `adr-folder.txt` (one line, not committed) holds the ADR folder path, e.g.
   `G:\我的雲端硬碟\#FJUH.Pharm\^藥品資訊\ADR`.
-- Desktop shortcut **ADR 通報卡**: target `C:\Windows\pyw.exe "D:\Gitdr-cards\server.py"`,
-  start in `D:\Gitdr-cards`. It starts the helper (no console window) and opens the page;
+- Desktop shortcut **ADR 通報卡**: target `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py"`,
+  start in `D:\Git\adr-cards`. It starts the helper (no console window) and opens the page;
   if the helper is already running it just opens the page.
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
