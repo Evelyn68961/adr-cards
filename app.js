@@ -34,7 +34,6 @@
     }));
     renderMessages(skipped);
     renderCards();
-    $('saveMessages').replaceChildren();
     suggestStart();
   }
 
@@ -120,8 +119,7 @@
     // Ticks only choose what to print; every case is saved (Excel is the
     // continuous record, and every 識別碼 needs its PNG for numbering).
     $('pngBtn').disabled = !cards.length;
-    $('saveBtn').disabled = !cards.length || !folder;
-    $('saveBtn').hidden = !folder;
+    $('saveBtn').disabled = !cards.length || !window.showDirectoryPicker;
     $('pngBtn').hidden = !!folder;
   }
 
@@ -312,18 +310,36 @@
     suggestStart();
   }
 
+  // A month folder like ADR_11510 is an easy mis-pick; the workbook lives one level up.
+  const isMonthFolder = handle => /^ADR_\d{5}$/i.test(handle.name);
+
+  async function checkFolder(handle) {
+    if (await existingFile(handle, WORKBOOK_NAME)) return true;
+    if (isMonthFolder(handle)) {
+      alert(`「${handle.name}」是月份資料夾。請選擇上一層、含有 ${WORKBOOK_NAME} 的 ADR 資料夾。`);
+      return false;
+    }
+    return confirm(`「${handle.name}」中沒有 ${WORKBOOK_NAME}。要在這個資料夾新建嗎？`);
+  }
+
+  // Resolves true once a folder is linked.
   async function linkFolder() {
     const stored = await savedFolder();
     // Reconnect to the remembered folder if that is all that's needed.
-    if (stored && !folder && await stored.requestPermission({ mode: 'readwrite' }) === 'granted') {
-      return useFolder(stored);
+    if (stored && !folder && !isMonthFolder(stored) &&
+        await stored.requestPermission({ mode: 'readwrite' }) === 'granted') {
+      useFolder(stored);
+      return true;
     }
     try {
       const handle = await window.showDirectoryPicker({ id: 'adr', mode: 'readwrite' });
+      if (!await checkFolder(handle)) return false;
       await saveFolder(handle);
       useFolder(handle);
+      return true;
     } catch (e) {
       if (e.name !== 'AbortError') alert('無法連結資料夾：' + e.message);
+      return false;
     }
   }
 
@@ -334,7 +350,7 @@
       return;
     }
     const stored = await savedFolder();
-    if (!stored) return;
+    if (!stored || isMonthFolder(stored)) return;
     if (await stored.queryPermission({ mode: 'readwrite' }) === 'granted') return useFolder(stored);
     $('folderStatus').textContent = `上次使用：${stored.name}`;
     $('linkBtn').textContent = '重新連結';
@@ -350,15 +366,26 @@
     catch (e) { if (e.name === 'NotFoundError') return null; throw e; }
   }
 
-  // Next sequence number = highest ADR_<yyyMM>NN.png in ADR_<yyyMM>\ + 1.
+  // Next sequence number = 1 + the larger of: cases already in the month's
+  // Excel sheet (rows with a chart number), and the highest ADR_<yyyMM>NN.png.
   async function nextSeq(key) {
-    const dir = await subfolder('ADR_' + key, false);
-    if (!dir) return 1;
-    const pattern = new RegExp(`^ADR_${key}(\\d{2})\\.png$`, 'i');
     let max = 0;
-    for await (const name of dir.keys()) {
-      const m = name.match(pattern);
-      if (m) max = Math.max(max, Number(m[1]));
+    const book = await existingFile(folder, WORKBOOK_NAME);
+    if (book) {
+      const wb = window.XLSX.read(await (await book.getFile()).arrayBuffer(), { type: 'array' });
+      const ws = wb.Sheets[String(Number(key.slice(0, 3)) + 1911) + key.slice(3)];
+      if (ws) {
+        max = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[0]).trim())).length;
+      }
+    }
+    const dir = await subfolder('ADR_' + key, false);
+    if (dir) {
+      const pattern = new RegExp(`^ADR_${key}(\\d{2})\\.png$`, 'i');
+      for await (const name of dir.keys()) {
+        const m = name.match(pattern);
+        if (m) max = Math.max(max, Number(m[1]));
+      }
     }
     return max + 1;
   }
@@ -388,6 +415,14 @@
   }
 
   async function saveToFolder() {
+    // Not linked yet: link first, then stop so the user can check the start
+    // number (linking may suggest a new one) before anything is written.
+    if (!folder) {
+      if (await linkFolder()) {
+        renderList($('saveMessages'), [{ cls: 'ok', text: '已連結 ADR 資料夾。請確認起始流水號後，再按一次「存入 Excel 與 PNG」。' }]);
+      }
+      return;
+    }
     const btn = $('saveBtn');
     const msgs = [];
     btn.disabled = true;
@@ -438,7 +473,11 @@
 
   // ---- Wiring ---------------------------------------------------------------
 
-  pasteEl.addEventListener('input', () => { startTouched = false; rebuild(); });
+  pasteEl.addEventListener('input', () => {
+    startTouched = false;
+    $('saveMessages').replaceChildren();
+    rebuild();
+  });
   startEl.addEventListener('input', () => { startTouched = true; rebuild(); });
   $('clearBtn').addEventListener('click', () => {
     pasteEl.value = '';
