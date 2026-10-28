@@ -41,7 +41,7 @@
       let ws = wb.Sheets[name];
       if (!ws) {
         ws = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER]);
-        ws['!cols'] = [12, 8, 8, 36, 8, 14, 30, 16].map(wch => ({ wch }));
+        ws['!cols'] = [12, 8, 8, 36, 8, 14, 30, 16, 10].map(wch => ({ wch }));
         XLSX.utils.book_append_sheet(wb, ws, name);
         // Keep monthly sheets in chronological order.
         wb.SheetNames.sort();
@@ -59,6 +59,15 @@
         XLSX.utils.sheet_add_aoa(ws, fresh.map(P.sheetRow), { origin: -1, cellDates: true, dateNF: DATE_FORMAT });
       }
     }
+
+    // A "rest of the columns" width rule (e.g. I:XFD) is read back as 16,384
+    // separate columns and would bloat the file ~80x; keep only used columns.
+    wb.SheetNames.forEach(name => {
+      const ws = wb.Sheets[name];
+      if (ws['!cols'] && ws['!ref']) {
+        ws['!cols'] = ws['!cols'].slice(0, XLSX.utils.decode_range(ws['!ref']).e.c + 1);
+      }
+    });
 
     const out = added.length
       ? new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }))

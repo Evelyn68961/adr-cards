@@ -383,8 +383,14 @@
       const wb = window.XLSX.read(await (await book.getFile()).arrayBuffer(), { type: 'array' });
       const ws = wb.Sheets[String(Number(key.slice(0, 3)) + 1911) + key.slice(3)];
       if (ws) {
-        max = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[0]).trim())).length;
+        const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[0]).trim()));
+        max = rows.length;
+        // Column I holds 識別碼 (e.g. 1151009) for rows saved by this tool.
+        rows.forEach(r => {
+          const id = String(r[8]).trim();
+          if (id.length === 7 && id.startsWith(key)) max = Math.max(max, Number(id.slice(5)));
+        });
       }
     }
     const dir = await subfolder('ADR_' + key, false);
@@ -450,7 +456,6 @@
       const result = W.appendRows(window.XLSX, P, original, cards);
       if (result.added.length) {
         try {
-          if (original) await writeFile(folder, WORKBOOK_NAME + '.bak', original);
           await writeFile(folder, WORKBOOK_NAME, result.bytes);
         } catch (e) {
           throw new Error(`無法寫入 ${WORKBOOK_NAME}（若檔案在 Excel 中開著，請先關閉）：${e.name} ${e.message}`);

@@ -175,9 +175,10 @@
   }
 
   // One row of the monthly Excel sheet (raw HIS text, as the sheet stores it).
-  const SHEET_HEADER = ['病歷號', '姓名', '藥碼', '藥名', '嚴重度', '通報來源', '症狀', '得知日期'];
+  // 識別碼 is the last column so the original A-H layout is unchanged.
+  const SHEET_HEADER = ['病歷號', '姓名', '藥碼', '藥名', '嚴重度', '通報來源', '症狀', '得知日期', '識別碼'];
   function sheetRow(r) {
-    return [r.chartNo, r.name, r.drugCode, r.drugRaw, r.severity, r.source, r.symptomRaw, r.date];
+    return [r.chartNo, r.name, r.drugCode, r.drugRaw, r.severity, r.source, r.symptomRaw, r.date, r.id || ''];
   }
 
   // Identifies a report across the paste and the workbook, to avoid

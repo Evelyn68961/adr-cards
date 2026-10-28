@@ -7,7 +7,9 @@ running, it just opens the browser.
 """
 import json
 import os
+import shutil
 import sys
+import time
 import urllib.parse
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +18,18 @@ HOST, PORT = '127.0.0.1', 8770
 URL = f'http://{HOST}:{PORT}/'
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG = os.path.join(APP_DIR, 'adr-folder.txt')
+# Copies of the workbook taken before each overwrite; kept out of the ADR folder.
+BACKUP_DIR = os.path.join(APP_DIR, 'backups')
+BACKUPS_KEPT = 30
+
+
+def backup(path):
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    stem, ext = os.path.splitext(os.path.basename(path))
+    shutil.copy2(path, os.path.join(BACKUP_DIR, f'{stem}_{time.strftime("%Y%m%d-%H%M%S")}{ext}'))
+    old = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith(stem + '_'))
+    for f in old[:-BACKUPS_KEPT]:
+        os.remove(os.path.join(BACKUP_DIR, f))
 
 
 def read_adr_dir():
@@ -108,6 +122,8 @@ class Handler(SimpleHTTPRequestHandler):
             with open(tmp, 'wb') as f:
                 f.write(data)
             try:
+                if path.lower().endswith('.xlsx') and os.path.isfile(path):
+                    backup(path)
                 os.replace(tmp, path)
             except PermissionError:
                 os.remove(tmp)

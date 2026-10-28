@@ -38,7 +38,9 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 
 - Rows go to the sheet for their month (`202610`, `202611`, …), created if missing.
 - A row already in the sheet (same 病歷號 + 藥碼 + 得知日期) is never added twice.
-- Before each write, the previous file is kept as `ADR通報.xlsx.bak`.
+- Column I holds the card's **識別碼**; columns A–H keep the original layout.
+- With the desktop shortcut, the previous workbook is copied to `backups\` in this folder
+  (latest 30) before each write; nothing extra is put in the ADR folder.
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.
 - Existing card PNGs are never overwritten; a clash means the start number is wrong.
 - Rewriting uses SheetJS, which keeps values, number formats and column widths but may drop

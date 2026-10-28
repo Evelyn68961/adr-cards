@@ -10,3 +10,4 @@ node_modules/
 adr-folder.txt
 *.adrtmp
 __pycache__/
+backups/

@@ -109,6 +109,8 @@ test('sheetRow and rowKey match the monthly sheet', () => {
   const r = P.parseText(HIS_ROW).rows[0];
   const row = P.sheetRow(r);
   assert.deepEqual(row.slice(0, 7), ['000000007G', '王小明', 'PEN04', 'Pentop SR 錠劑 400 mg', '2_中等', '病人/家屬自述', 'Palpitation']);
+  assert.equal(row[8], '');
+  assert.equal(P.sheetRow(P.assignIds([r], 9)[0])[8], '1151009');
   assert.equal(P.sheetName(r.date), '202610');
   assert.equal(P.rowKey(r.chartNo, r.drugCode, r.date), '000000007G|PEN04|2026/10/20 14:26:51');
 });
