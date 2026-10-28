@@ -21,7 +21,9 @@
     // HIS export: 病歷號 姓名 藥碼 MDPNAME ATC 藥理分類 藥理分類名稱 嚴重程度 記錄來源
     //             是否過敏 登記日 症狀 疫苗接種日期 疫苗接種院所 最後異動者員編 最後異動者 最後異動時間
     17: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 7, source: 8, symptom: 11, date: [16, 10] },
-    // Monthly Excel sheet: 病歷號 姓名 藥碼 藥名 嚴重度 通報來源 症狀 得知日期
+    // Monthly Excel sheet: 識別碼 病歷號 姓名 藥碼 藥名 嚴重度 通報來源 症狀 得知日期
+    9: { chartNo: 1, name: 2, drugCode: 3, drug: 4, severity: 5, source: 6, symptom: 7, date: [8] },
+    // Same without 識別碼 (sheet rows from before the column was added)
     8: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 4, source: 5, symptom: 6, date: [7] },
   };
   const CHART_NO = /^\d{9}[A-Z]$/i;
@@ -95,13 +97,14 @@
   }
 
   // HIS puts line breaks inside cells (e.g. 記錄來源), so one record can span
-  // several lines. A record starts at a line whose first cell is a chart
-  // number or a header; any other line continues the previous record.
+  // several lines. A record starts at a line whose first cell (second, after
+  // a 識別碼) is a chart number, or at a header; any other line continues the
+  // previous record.
   function splitRecords(text) {
     const records = [];
     String(text || '').split(/\r?\n/).forEach((line, i) => {
-      const first = line.split('\t')[0].trim();
-      if (CHART_NO.test(first) || first === '病歷號') {
+      const [first = '', second = ''] = line.split('\t').map(c => c.trim());
+      if (CHART_NO.test(first) || CHART_NO.test(second) || first === '病歷號' || second === '病歷號') {
         records.push({ line: i + 1, text: line });
       } else if (records.length && line.trim()) {
         records[records.length - 1].text += '\n' + line;
@@ -133,12 +136,12 @@
     const skipped = [];
     let header = null;
     splitRecords(text).forEach(rec => {
-      if (rec.text.split('\t')[0].trim() === '病歷號') {
+      if (rec.text.split('\t').slice(0, 2).some(c => c.trim() === '病歷號')) {
         header = headerLayout(splitCells(rec.text));
         return;
       }
       const tabs = rec.text.split('\t').length;
-      const width = header ? header.width : tabs >= 12 || rec.text.includes('\n') ? 17 : 8;
+      const width = header ? header.width : tabs >= 12 || rec.text.includes('\n') ? 17 : tabs === 9 ? 9 : 8;
       const cells = splitCells(rec.text, width);
       const cols = header ? header.cols : LAYOUTS[width];
       const get = key => (key in cols ? cells[cols[key]] || '' : '');
@@ -175,10 +178,9 @@
   }
 
   // One row of the monthly Excel sheet (raw HIS text, as the sheet stores it).
-  // 識別碼 is the last column so the original A-H layout is unchanged.
-  const SHEET_HEADER = ['病歷號', '姓名', '藥碼', '藥名', '嚴重度', '通報來源', '症狀', '得知日期', '識別碼'];
+  const SHEET_HEADER = ['識別碼', '病歷號', '姓名', '藥碼', '藥名', '嚴重度', '通報來源', '症狀', '得知日期'];
   function sheetRow(r) {
-    return [r.chartNo, r.name, r.drugCode, r.drugRaw, r.severity, r.source, r.symptomRaw, r.date, r.id || ''];
+    return [r.id || '', r.chartNo, r.name, r.drugCode, r.drugRaw, r.severity, r.source, r.symptomRaw, r.date];
   }
 
   // Identifies a report across the paste and the workbook, to avoid

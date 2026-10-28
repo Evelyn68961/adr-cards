@@ -34,8 +34,8 @@ test('appendRows creates monthly sheets, appends, and skips duplicates', () => {
   assert.deepEqual(r2.added.map(a => a.row.chartNo), ['000000003Z']);
   assert.deepEqual(r2.duplicates.map(d => d.chartNo), ['000000001Z']);
   const sheet = XLSX.utils.sheet_to_json(XLSX.read(r2.bytes, { type: 'array' }).Sheets['202610'], { header: 1 });
-  assert.deepEqual(sheet.map(r => r[0]), ['病歷號', '000000001Z', '000000003Z']);
-  assert.equal(sheet[0][8], '識別碼');
+  assert.deepEqual(sheet.map(r => r[1]), ['病歷號', '000000001Z', '000000003Z']);
+  assert.equal(sheet[0][0], '識別碼');
 });
 
 test('appendRows with nothing new returns the original bytes', () => {
@@ -55,7 +55,7 @@ test('appendRows does not expand a whole-row column width rule', () => {
   const cards = P.assignIds(P.parseText(row(1, '2026/10/17 10:52:08')).rows, 11);
   const { bytes: out } = W.appendRows(XLSX, P, bytes, cards);
   const sheet = XLSX.read(out, { type: 'array', cellStyles: true }).Sheets['202610'];
-  assert.equal(sheet.I2.v, '1151011');
+  assert.equal(sheet.A2.v, '1151011');
   const cols = sheet['!cols'];
   assert.ok(cols.length <= 9, `kept ${cols.length} column entries`);
   assert.ok(out.length < 20000, `file is ${out.length} bytes`);

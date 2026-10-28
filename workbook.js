@@ -18,8 +18,8 @@
   function existingKeys(XLSX, ws, P) {
     const keys = new Set();
     XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }).forEach(r => {
-      const date = r[7] instanceof Date ? roundSeconds(r[7]) : P.parseDate(r[7]);
-      if (date) keys.add(P.rowKey(r[0], r[2], date));
+      const date = r[8] instanceof Date ? roundSeconds(r[8]) : P.parseDate(r[8]);
+      if (date) keys.add(P.rowKey(r[1], r[3], date));
     });
     return keys;
   }
@@ -41,7 +41,7 @@
       let ws = wb.Sheets[name];
       if (!ws) {
         ws = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER]);
-        ws['!cols'] = [12, 8, 8, 36, 8, 14, 30, 16, 10].map(wch => ({ wch }));
+        ws['!cols'] = [10, 12, 8, 8, 36, 8, 14, 30, 16].map(wch => ({ wch }));
         XLSX.utils.book_append_sheet(wb, ws, name);
         // Keep monthly sheets in chronological order.
         wb.SheetNames.sort();

@@ -108,9 +108,24 @@ test('HIS export without header is detected by shape', () => {
 test('sheetRow and rowKey match the monthly sheet', () => {
   const r = P.parseText(HIS_ROW).rows[0];
   const row = P.sheetRow(r);
-  assert.deepEqual(row.slice(0, 7), ['000000007G', '王小明', 'PEN04', 'Pentop SR 錠劑 400 mg', '2_中等', '病人/家屬自述', 'Palpitation']);
-  assert.equal(row[8], '');
-  assert.equal(P.sheetRow(P.assignIds([r], 9)[0])[8], '1151009');
+  assert.deepEqual(row.slice(1, 8), ['000000007G', '王小明', 'PEN04', 'Pentop SR 錠劑 400 mg', '2_中等', '病人/家屬自述', 'Palpitation']);
+  assert.equal(row[0], '');
+  assert.equal(P.sheetRow(P.assignIds([r], 9)[0])[0], '1151009');
   assert.equal(P.sheetName(r.date), '202610');
   assert.equal(P.rowKey(r.chartNo, r.drugCode, r.date), '000000007G|PEN04|2026/10/20 14:26:51');
+});
+
+test('rows copied back from the sheet (識別碼 first) parse', () => {
+  const { rows } = P.parseText('1151006\t000000006F\tX\tCEL01\tCelebrex 膠囊 200 mg\t2_中等\t病人/家屬自述\tRash\t10/17/26 10:52');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].chartNo, '000000006F');
+  assert.equal(rows[0].drug, 'Celebrex 膠囊 200 mg');
+});
+
+test('sheet header starting with 識別碼 is recognised', () => {
+  const text = P.SHEET_HEADER.join('\t') + '\n' + '1151006\t000000006F\tX\tCEL01\tCelebrex 膠囊 200 mg\t2_中等\t病人/家屬自述\tRash\t10/17/26 10:52';
+  const { rows, skipped } = P.parseText(text);
+  assert.equal(skipped.length, 0);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].symptom, 'Rash');
 });

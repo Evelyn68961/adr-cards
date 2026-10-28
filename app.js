@@ -384,11 +384,11 @@
       const ws = wb.Sheets[String(Number(key.slice(0, 3)) + 1911) + key.slice(3)];
       if (ws) {
         const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[0]).trim()));
+          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()));
         max = rows.length;
-        // Column I holds 識別碼 (e.g. 1151009) for rows saved by this tool.
+        // Column A holds 識別碼 (e.g. 1151009).
         rows.forEach(r => {
-          const id = String(r[8]).trim();
+          const id = String(r[0]).trim();
           if (id.length === 7 && id.startsWith(key)) max = Math.max(max, Number(id.slice(5)));
         });
       }
