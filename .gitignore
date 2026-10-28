@@ -7,3 +7,6 @@ ADR_*.png
 node_modules/
 *.pdf
 *.bak
+adr-folder.txt
+*.adrtmp
+__pycache__/

@@ -119,7 +119,7 @@
     // Ticks only choose what to print; every case is saved (Excel is the
     // continuous record, and every 識別碼 needs its PNG for numbering).
     $('pngBtn').disabled = !cards.length;
-    $('saveBtn').disabled = !cards.length || !window.showDirectoryPicker;
+    $('saveBtn').disabled = !cards.length || (!folder && !window.showDirectoryPicker);
     $('pngBtn').hidden = !!folder;
   }
 
@@ -344,6 +344,14 @@
   }
 
   async function initFolder() {
+    // Desktop shortcut (server.py): the ADR folder is built in, nothing to link.
+    const local = await window.ADRLocal.detect();
+    if (local) {
+      $('linkBtn').hidden = true;
+      await useFolder(local);
+      $('folderStatus').textContent = `已連結：${local.name}（本機自動連結）`;
+      return;
+    }
     if (!window.showDirectoryPicker) {
       $('linkBtn').hidden = true;
       $('folderUnsupported').hidden = false;

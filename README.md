@@ -5,6 +5,19 @@ and records the cases in the monthly ADR workbook.
 
 **Live:** https://evelyn68961.github.io/adr-cards/ (also works by opening `index.html` from disk)
 
+## Desktop shortcut (recommended)
+
+`server.py` (standard-library Python) serves the tool at **http://127.0.0.1:8770/** with the ADR
+folder built in, so nothing ever has to be linked or allowed.
+
+- `adr-folder.txt` (one line, not committed) holds the ADR folder path, e.g.
+  `G:\我的雲端硬碟\#FJUH.Pharm\^藥品資訊\ADR`.
+- Desktop shortcut **ADR 通報卡**: target `C:\Windows\pyw.exe "D:\Gitdr-cards\server.py"`,
+  start in `D:\Gitdr-cards`. It starts the helper (no console window) and opens the page;
+  if the helper is already running it just opens the page.
+- The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
+  and only touches files inside the ADR folder.
+
 ## Usage
 
 1. **連結 ADR 資料夾** (first time only; Chrome or Edge) and pick the `ADR` folder that holds
