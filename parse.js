@@ -163,15 +163,24 @@
     return { rows, skipped };
   }
 
-  // Sorts by 得知日期 (date + time) and assigns 識別碼. `startSeq` applies to
-  // the earliest month in the batch; any later month starts again at 1.
-  function assignIds(rows, startSeq) {
+  // Sorts by 得知日期 (date + time) and assigns 識別碼. Cases the workbook already
+  // holds keep their number (`ledger.idFor`, marked `recorded`). `startSeq`, when
+  // given, applies to the earliest month with new cases; every other month
+  // continues from `ledger.nextSeq(key)`, or 1 without a ledger.
+  function assignIds(rows, startSeq, ledger) {
     const sorted = rows.slice().sort((a, b) => a.date - b.date);
+    const known = r => (ledger ? ledger.idFor(r) : null);
+    const firstNew = sorted.find(r => !known(r));
+    const firstKey = firstNew ? monthKey(firstNew.date) : null;
     const counters = {};
-    const firstKey = sorted.length ? monthKey(sorted[0].date) : null;
     return sorted.map(r => {
+      const id = known(r);
+      if (id) return Object.assign({}, r, { id, recorded: true });
       const key = monthKey(r.date);
-      if (!(key in counters)) counters[key] = key === firstKey ? Math.max(1, startSeq | 0) : 1;
+      if (!(key in counters)) {
+        counters[key] = key === firstKey && startSeq ? Math.max(1, startSeq | 0)
+          : ledger ? ledger.nextSeq(key) : 1;
+      }
       const seq = counters[key]++;
       return Object.assign({}, r, { id: key + String(seq).padStart(2, '0') });
     });

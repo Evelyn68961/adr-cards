@@ -79,6 +79,23 @@ button:disabled { opacity: .4; cursor: default; }
 .folder-panel .hint { flex-basis: 100%; margin: 0; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.step-row select { font: inherit; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.stat { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.stat-label { display: block; color: var(--muted); font-size: .85rem; }
+.stat-value { display: block; font-size: 1.5rem; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stat-next { background: var(--ok-bg); border-color: var(--accent); }
+.stat-next .stat-value { color: var(--ok-text); }
+.status-error { margin: 10px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--warn-bg); color: var(--warn-text); }
+.status-list { margin-top: 12px; }
+.status-list summary { cursor: pointer; font-weight: 600; }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+.status-list table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.status-list th, .status-list td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.status-list th { color: var(--muted); font-weight: 600; }
+.card-done { color: var(--ok-text); }
+.card-missing { color: var(--warn-text); font-weight: 600; }
+
 .messages { list-style: none; margin: 10px 0 0; padding: 0; font-size: .9rem; }
 .messages li { padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
 .messages .warn { background: var(--warn-bg); color: var(--warn-text); }
@@ -106,6 +123,7 @@ button:disabled { opacity: .4; cursor: default; }
   overflow: hidden;
 }
 .card.excluded { opacity: .35; }
+.card .recorded { position: absolute; top: 3mm; right: 10mm; padding: 1px 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-text); font-size: 10pt; }
 .card .include { position: absolute; top: 3mm; right: 3mm; width: 18px; height: 18px; }
 .field { display: flex; margin-bottom: 1.6mm; }
 .field .label { flex: none; white-space: pre; }

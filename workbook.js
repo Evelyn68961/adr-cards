@@ -24,6 +24,31 @@
     return keys;
   }
 
+  // What the workbook holds: { months: { '202610': { key: '11510', rows, maxSeq } },
+  // ids: Map(rowKey -> 識別碼) }. maxSeq is the highest number in use, counting
+  // rows without a 識別碼 so a blank one can never lead to a reused number.
+  function readLedger(XLSX, P, bytes) {
+    const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
+    const months = {};
+    const ids = new Map();
+    wb.SheetNames.filter(name => /^\d{6}$/.test(name)).forEach(name => {
+      const key = String(Number(name.slice(0, 4)) - 1911) + name.slice(4);
+      const rows = [];
+      let maxSeq = 0;
+      XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' }).forEach(r => {
+        const chartNo = String(r[1]).trim().toUpperCase();
+        if (!/^\d{9}[A-Z]$/.test(chartNo)) return;
+        const id = String(r[0]).trim();
+        const date = r[8] instanceof Date ? roundSeconds(r[8]) : P.parseDate(r[8]);
+        if (id.length === 7 && id.startsWith(key)) maxSeq = Math.max(maxSeq, Number(id.slice(5)));
+        if (id && date) ids.set(P.rowKey(chartNo, r[3], date), id);
+        rows.push({ id, chartNo, drug: P.cleanDrug(r[4]), symptom: P.cleanSymptom(r[7]), date });
+      });
+      months[name] = { key, rows, maxSeq: Math.max(maxSeq, rows.length) };
+    });
+    return { months, ids };
+  }
+
   // Returns { bytes, added: [{sheet, row}], duplicates: [row] }. Rows already
   // in their month's sheet (same chart no + drug code + date-time) are skipped.
   function appendRows(XLSX, P, bytes, rows) {
@@ -75,7 +100,7 @@
     return { bytes: out, added, duplicates };
   }
 
-  const api = { appendRows };
+  const api = { appendRows, readLedger };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRWorkbook = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ADR 通報卡</title>
-  <link rel="stylesheet" href="style.css?v=20261028b">
+  <link rel="stylesheet" href="style.css?v=20261030">
 </head>
 <body>
   <header class="no-print">
@@ -18,6 +18,30 @@
       <span id="folderStatus" class="folder-status">尚未連結</span>
       <button id="linkBtn" type="button" class="secondary">連結 ADR 資料夾</button>
       <p id="folderUnsupported" class="hint" hidden>此瀏覽器無法直接寫入檔案，請改用 Chrome 或 Edge。</p>
+    </section>
+
+    <section id="statusPanel" class="panel" hidden>
+      <div class="step-row">
+        <span class="step">目前累積（與 Excel 同步）</span>
+        <select id="statusMonth" aria-label="月份"></select>
+      </div>
+      <div class="stats">
+        <div class="stat stat-next"><span class="stat-label">下一個識別碼</span><span id="statNext" class="stat-value"></span></div>
+        <div class="stat"><span class="stat-label">最新識別碼</span><span id="statLatest" class="stat-value"></span></div>
+        <div class="stat"><span class="stat-label">累積案例</span><span id="statCount" class="stat-value"></span></div>
+        <div class="stat"><span class="stat-label">尚未製卡</span><span id="statNoCard" class="stat-value"></span></div>
+      </div>
+      <p id="statusError" class="status-error" hidden></p>
+      <details class="status-list" open>
+        <summary>本月案例清單</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>識別碼</th><th>病歷號</th><th>藥品</th><th>症狀</th><th>得知日期</th><th>卡片</th></tr></thead>
+            <tbody id="statusRows"></tbody>
+          </table>
+        </div>
+        <p id="statusEmpty" class="hint" hidden>這個月還沒有案例。</p>
+      </details>
     </section>
 
     <section class="panel">
@@ -55,11 +79,11 @@
   <div id="sheet" class="sheet"></div>
   <div id="printArea" class="print-area"></div>
 
-  <script src="lib/xlsx.full.min.js?v=20261028b"></script>
-  <script src="parse.js?v=20261028b"></script>
-  <script src="workbook.js?v=20261028b"></script>
-  <script src="pdf.js?v=20261028b"></script>
-  <script src="local.js?v=20261028b"></script>
-  <script src="app.js?v=20261028b"></script>
+  <script src="lib/xlsx.full.min.js?v=20261030"></script>
+  <script src="parse.js?v=20261030"></script>
+  <script src="workbook.js?v=20261030"></script>
+  <script src="pdf.js?v=20261030"></script>
+  <script src="local.js?v=20261030"></script>
+  <script src="app.js?v=20261030"></script>
 </body>
 </html>

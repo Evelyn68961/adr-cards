@@ -60,3 +60,28 @@ test('appendRows does not expand a whole-row column width rule', () => {
   assert.ok(cols.length <= 9, `kept ${cols.length} column entries`);
   assert.ok(out.length < 20000, `file is ${out.length} bytes`);
 });
+
+test('readLedger reports numbers per month and maps cases to their 識別碼', () => {
+  const cards = P.assignIds(P.parseText([row(1, '2026/10/17 10:52:08'), row(2, '2026/10/20 14:26:51')].join('\n')).rows, 11);
+  const { bytes } = W.appendRows(XLSX, P, null, cards);
+  const ledger = W.readLedger(XLSX, P, bytes);
+  const month = ledger.months['202610'];
+  assert.equal(month.key, '11510');
+  assert.equal(month.rows.length, 2);
+  assert.equal(month.maxSeq, 12);
+  assert.equal(month.rows[1].drug, 'Celebrex 膠囊 200 mg');
+  assert.equal(ledger.ids.get(P.rowKey('000000001Z', 'CEL01', cards[0].date)), '1151011');
+});
+
+test('assignIds keeps recorded numbers and continues from the ledger', () => {
+  const rows = P.parseText([row(1, '2026/10/17 10:52:08'), row(2, '2026/10/20 14:26:51'), row(3, '2026/11/02 09:00:00')].join('\n')).rows;
+  const ledger = {
+    idFor: r => (r.chartNo === '000000001Z' ? '1151006' : null),
+    nextSeq: key => (key === '11510' ? 11 : 1),
+  };
+  const cards = P.assignIds(rows, null, ledger);
+  assert.deepEqual(cards.map(c => c.id), ['1151006', '1151011', '1151101']);
+  assert.deepEqual(cards.map(c => !!c.recorded), [true, false, false]);
+  // A typed start number applies to the first month with new cases.
+  assert.deepEqual(P.assignIds(rows, 20, ledger).map(c => c.id), ['1151006', '1151020', '1151101']);
+});

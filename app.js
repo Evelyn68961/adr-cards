@@ -22,19 +22,40 @@
 
   let cards = [];
   let folder = null;          // FileSystemDirectoryHandle of the ADR folder
-  let startTouched = false;   // user typed a start number; stop suggesting
+  let startTouched = false;   // user typed a start number; stop following Excel
+  let ledger = null;          // what ADR通報.xlsx holds (see ADRWorkbook.readLedger)
+  let pngs = {};              // month key -> Set of card file names on disk
+  let shownMonth = null;      // month key picked in the status panel
+  let saving = false;
 
   // ---- Parsing and cards ----------------------------------------------------
 
+  // Keeps ticks and hand edits for cases that are still in the list, and only
+  // redraws when numbering changed, so a background sync never disturbs typing.
   function rebuild() {
     const { rows, skipped } = P.parseText(pasteEl.value);
-    cards = P.assignIds(rows, Number(startEl.value) || 1).map(c => Object.assign(c, {
-      dateText: P.formatDate(c.date),
-      include: true,
-    }));
+    const before = new Map(cards.map(c => [c.key, c]));
+    const start = startTouched ? Number(startEl.value) || 1 : null;
+    const next = P.assignIds(rows, start, ledgerView()).map(c => {
+      const key = P.rowKey(c.chartNo, c.drugCode, c.date);
+      const old = before.get(key);
+      const kept = old ? {
+        include: old.include, chartNo: old.chartNo, dateText: old.dateText,
+        source: old.source, drug: old.drug, symptom: old.symptom,
+      } : { include: true, dateText: P.formatDate(c.date) };
+      return Object.assign(c, { key }, kept);
+    });
+    const signature = list => list.map(c => `${c.key}=${c.id}=${!!c.recorded}`).join();
+    if (signature(next) !== signature(cards)) {
+      cards = next;
+      renderCards();
+    }
+    if (!startTouched) {
+      const first = cards.find(c => !c.recorded);
+      startEl.value = first ? Number(first.id.slice(5)) : ledger ? nextSeq(currentMonthKey()) : 1;
+    }
     renderMessages(skipped);
-    renderCards();
-    suggestStart();
+    updateButtons();
   }
 
   function renderList(el, msgs) {
@@ -56,13 +77,25 @@
   function renderMessages(skipped) {
     const msgs = skipped.map(s => ({ cls: 'warn', text: `第 ${s.line} 行略過：${s.reason}` }));
     const months = [...new Set(cards.map(c => c.id.slice(0, 5)))];
-    if (months.length > 1) {
+    if (months.length > 1 && !ledger) {
       msgs.push({ cls: 'warn', text: `包含多個月份（${months.join('、')}）：起始流水號只套用於第一個月，其後月份從 01 開始。` });
     }
-    if (cards.length) msgs.unshift({ cls: 'ok', text: `共 ${cards.length} 張卡片，已依得知日期時間排序。` });
+    const fresh = cards.filter(c => !c.recorded);
+    const recorded = cards.length - fresh.length;
+    if (cards.length) {
+      msgs.unshift({ cls: 'ok', text: `共 ${cards.length} 張卡片，已依得知日期時間排序。` +
+        (recorded ? `其中 ${recorded} 張已在 Excel，沿用原識別碼。` : '') });
+    }
+    if (ledger && startTouched && fresh.length) {
+      const expected = nextSeq(fresh[0].id.slice(0, 5));
+      if (Number(fresh[0].id.slice(5)) !== expected) {
+        msgs.push({ cls: 'warn', text: `Excel 的下一號是 ${fresh[0].id.slice(0, 5)}${String(expected).padStart(2, '0')}，您輸入的起始流水號與它不同。` });
+      }
+    }
     renderList(messagesEl, msgs);
-    $('idHint').textContent = cards.length
-      ? `識別碼：${cards[0].id} – ${cards[cards.length - 1].id}` : '';
+    $('idHint').textContent = fresh.length
+      ? `新案例識別碼：${fresh[0].id} – ${fresh[fresh.length - 1].id}${ledger && !startTouched ? '（已與 Excel 同步）' : ''}`
+      : '';
   }
 
   function renderCards() {
@@ -81,6 +114,13 @@
         updateButtons();
       });
       el.appendChild(toggle);
+
+      if (card.recorded) {
+        const badge = document.createElement('span');
+        badge.className = 'recorded no-print';
+        badge.textContent = '已在 Excel';
+        el.appendChild(badge);
+      }
 
       FIELDS.forEach(f => {
         const row = document.createElement('div');
@@ -307,7 +347,7 @@
     $('folderStatus').classList.add('linked');
     $('linkBtn').textContent = '更換資料夾';
     updateButtons();
-    suggestStart();
+    await refreshLedger();
   }
 
   // A month folder like ADR_11510 is an easy mis-pick; the workbook lives one level up.
@@ -328,14 +368,14 @@
     // Reconnect to the remembered folder if that is all that's needed.
     if (stored && !folder && !isMonthFolder(stored) &&
         await stored.requestPermission({ mode: 'readwrite' }) === 'granted') {
-      useFolder(stored);
+      await useFolder(stored);
       return true;
     }
     try {
       const handle = await window.showDirectoryPicker({ id: 'adr', mode: 'readwrite' });
       if (!await checkFolder(handle)) return false;
       await saveFolder(handle);
-      useFolder(handle);
+      await useFolder(handle);
       return true;
     } catch (e) {
       if (e.name !== 'AbortError') alert('無法連結資料夾：' + e.message);
@@ -374,51 +414,106 @@
     catch (e) { if (e.name === 'NotFoundError') return null; throw e; }
   }
 
-  // Next sequence number = 1 + the larger of: cases already in the month's
-  // Excel sheet (rows with a chart number), and the highest ADR_<yyyMM>NN.png.
-  async function nextSeq(key) {
-    let max = 0;
-    const book = await existingFile(folder, WORKBOOK_NAME);
-    if (book) {
-      const wb = window.XLSX.read(await (await book.getFile()).arrayBuffer(), { type: 'array' });
-      const ws = wb.Sheets[String(Number(key.slice(0, 3)) + 1911) + key.slice(3)];
-      if (ws) {
-        const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
-          .filter(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()));
-        max = rows.length;
-        // Column A holds 識別碼 (e.g. 1151009).
-        rows.forEach(r => {
-          const id = String(r[0]).trim();
-          if (id.length === 7 && id.startsWith(key)) max = Math.max(max, Number(id.slice(5)));
-        });
-      }
-    }
-    const dir = await subfolder('ADR_' + key, false);
-    if (dir) {
-      const pattern = new RegExp(`^ADR_${key}(\\d{2})\\.png$`, 'i');
-      for await (const name of dir.keys()) {
-        const m = name.match(pattern);
-        if (m) max = Math.max(max, Number(m[1]));
-      }
-    }
+  // ---- Sync with ADR通報.xlsx ----------------------------------------------------
+
+  const currentMonthKey = () => P.monthKey(new Date());
+  const pngFor = id => `ADR_${id}.png`;
+
+  // Next number for a month = 1 + the larger of the workbook's highest number
+  // and the highest ADR_<yyyMM>NN.png in the month folder.
+  function nextSeq(key) {
+    const month = ledger && Object.values(ledger.months).find(m => m.key === key);
+    let max = month ? month.maxSeq : 0;
+    (pngs[key] || []).forEach(name => {
+      const m = name.match(new RegExp(`^ADR_${key}(\\d{2})\\.png$`, 'i'));
+      if (m) max = Math.max(max, Number(m[1]));
+    });
     return max + 1;
   }
 
-  let suggestToken = 0;
-  async function suggestStart() {
-    if (!folder || startTouched || !cards.length) return;
-    const token = ++suggestToken;
-    const key = cards[0].id.slice(0, 5);
+  function ledgerView() {
+    if (!ledger) return null;
+    return {
+      idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null,
+      nextSeq,
+    };
+  }
+
+  // Re-reads the workbook and month folders. Runs on open, after each save and
+  // whenever the page regains focus, so manual Excel edits show up too.
+  let ledgerToken = 0;
+  async function refreshLedger() {
+    if (!folder || saving) return;
+    const token = ++ledgerToken;
     try {
-      const seq = await nextSeq(key);
-      if (token !== suggestToken || startTouched) return;
-      if (Number(startEl.value) !== seq) {
-        startEl.value = seq;
-        rebuild();  // runs suggestStart again, which adds the hint
-        return;
+      const book = await existingFile(folder, WORKBOOK_NAME);
+      const bytes = book ? new Uint8Array(await (await book.getFile()).arrayBuffer()) : null;
+      const next = bytes ? W.readLedger(window.XLSX, P, bytes) : { months: {}, ids: new Map() };
+      const keys = new Set([
+        ...Object.values(next.months).map(m => m.key),
+        ...cards.map(c => c.id.slice(0, 5)),
+        currentMonthKey(),
+      ]);
+      const found = {};
+      for (const key of keys) {
+        const dir = await subfolder('ADR_' + key, false);
+        const names = new Set();
+        if (dir) for await (const name of dir.keys()) names.add(name);
+        found[key] = names;
       }
-      $('idHint').textContent += '（依 Excel 與已有卡片自動帶入）';
-    } catch (e) { /* folder unavailable; keep the typed number */ }
+      if (token !== ledgerToken || saving) return;
+      ledger = next;
+      pngs = found;
+      $('statusError').hidden = true;
+      renderStatus();
+      rebuild();
+    } catch (e) {
+      if (token !== ledgerToken) return;
+      $('statusPanel').hidden = false;
+      $('statusError').hidden = false;
+      $('statusError').textContent = `無法讀取 ${WORKBOOK_NAME}：${e.message}`;
+    }
+  }
+
+  function renderStatus() {
+    $('statusPanel').hidden = false;
+    const months = [...new Set([currentMonthKey(), ...Object.values(ledger.months).map(m => m.key)])]
+      .sort().reverse();
+    if (!months.includes(shownMonth)) shownMonth = currentMonthKey();
+    const select = $('statusMonth');
+    select.replaceChildren(...months.map(key => {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = `${key.slice(0, 3)} 年 ${Number(key.slice(3))} 月`;
+      return option;
+    }));
+    select.value = shownMonth;
+
+    const month = Object.values(ledger.months).find(m => m.key === shownMonth);
+    const rows = month ? month.rows.slice().sort((a, b) => a.id.localeCompare(b.id) || a.date - b.date) : [];
+    const ids = rows.map(r => r.id).filter(Boolean);
+    const onDisk = pngs[shownMonth] || new Set();
+    const noCard = rows.filter(r => !r.id || !onDisk.has(pngFor(r.id)));
+    $('statCount').textContent = `${rows.length} 件`;
+    $('statLatest').textContent = ids.length ? ids[ids.length - 1] : '—';
+    $('statNext').textContent = shownMonth + String(nextSeq(shownMonth)).padStart(2, '0');
+    $('statNoCard').textContent = `${noCard.length} 件`;
+
+    $('statusRows').replaceChildren(...rows.map(r => {
+      const tr = document.createElement('tr');
+      [r.id || '—', r.chartNo, r.drug, r.symptom, r.date ? P.formatDate(r.date) : '—'].forEach(text => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+      const td = document.createElement('td');
+      const done = r.id && onDisk.has(pngFor(r.id));
+      td.textContent = done ? '已製卡' : '未製卡';
+      td.className = done ? 'card-done' : 'card-missing';
+      tr.appendChild(td);
+      return tr;
+    }));
+    $('statusEmpty').hidden = rows.length > 0;
   }
 
   async function writeFile(dir, name, data) {
@@ -429,20 +524,13 @@
   }
 
   async function saveToFolder() {
-    // One click: link if needed, then number the cards from the folder
-    // (unless the user typed a start number) before writing anything.
+    // One click: link if needed, then re-sync with Excel so the numbers are
+    // current (unless the user typed a start number) before writing anything.
     if (!folder && !await linkFolder()) return;
-    if (!startTouched && cards.length) {
-      try {
-        const seq = await nextSeq(cards[0].id.slice(0, 5));
-        if (Number(startEl.value) !== seq) {
-          startEl.value = seq;
-          rebuild();
-        }
-      } catch (e) { /* keep the shown number */ }
-    }
+    await refreshLedger();
     const btn = $('saveBtn');
     const msgs = [];
+    saving = true;
     btn.disabled = true;
     btn.textContent = '儲存中…';
     try {
@@ -464,7 +552,7 @@
         msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：新增 ${result.added.length} 列到工作表 ${sheets}${original ? '' : '（新建檔案）'}` });
       }
       if (result.duplicates.length) {
-        msgs.push({ cls: 'warn', text: `${result.duplicates.length} 列已在 Excel 中，未重複新增：${result.duplicates.map(r => r.chartNo).join('、')}` });
+        msgs.push({ cls: 'ok', text: `${result.duplicates.length} 列已在 Excel 中，未重複新增：${result.duplicates.map(r => r.chartNo).join('、')}` });
       }
 
       // 2. PNGs: never overwrite an existing card.
@@ -473,7 +561,10 @@
       for (const card of cards) {
         const dir = await subfolder('ADR_' + card.id.slice(0, 5), true);
         const name = `ADR_${card.id}.png`;
-        if (await existingFile(dir, name)) { exists.push(name); continue; }
+        if (await existingFile(dir, name)) {
+          if (!card.recorded) exists.push(name);
+          continue;
+        }
         await writeFile(dir, name, await cardBlob(card));
         saved.push(name);
       }
@@ -482,10 +573,12 @@
     } catch (e) {
       msgs.push({ cls: 'warn', text: e.message });
     } finally {
+      saving = false;
       btn.textContent = '存入 Excel 與 PNG（全部）';
       updateButtons();
       renderList($('saveMessages'), msgs);
     }
+    await refreshLedger();
   }
 
   // ---- Wiring ---------------------------------------------------------------
@@ -502,6 +595,11 @@
     rebuild();
     pasteEl.focus();
   });
+  $('statusMonth').addEventListener('change', e => {
+    shownMonth = e.target.value;
+    renderStatus();
+  });
+  window.addEventListener('focus', refreshLedger);
   $('linkBtn').addEventListener('click', linkFolder);
   $('saveBtn').addEventListener('click', saveToFolder);
   $('pdfBtn').addEventListener('click', makePdf);

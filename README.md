@@ -23,8 +23,10 @@ folder built in, so nothing ever has to be linked or allowed.
 1. **連結 ADR 資料夾** (first time only; Chrome or Edge) and pick the `ADR` folder that holds
    `ADR通報.xlsx`. The browser remembers it and only asks for permission again once per session.
 2. Copy the rows from the HIS ADR list (header row included is best) and paste.
-3. **起始流水號** is filled in automatically: 1 + the larger of the cases already in the month's
-   Excel sheet and the highest card number in `ADR_<yyyMM>\` (e.g. 8 cases in sheet `202610` → starts at 09). It can be overridden.
+3. The **目前累積** panel reads `ADR通報.xlsx` and the month folder: case count, latest and next
+   識別碼, cases without a card, and the month's list. It refreshes on open, after each save, and
+   when the page regains focus. Numbers follow it automatically; pasted cases already in Excel
+   keep their 識別碼. **起始流水號** can still be overridden.
 4. Tick the cards to **print** (全選 / 全不選); click any value on a card to fix it.
 5. **存入 Excel 與 PNG（全部）** appends **every** pasted case (ticked or not — the workbook is the
    continuous record) to `ADR通報.xlsx` and saves `ADR_<識別碼>.png`
