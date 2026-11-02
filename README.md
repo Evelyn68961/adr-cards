@@ -84,6 +84,10 @@ For entering finished report forms into the TFDA online ADR form.
 - Lab results are not typed in: **檢驗資料 PDF** writes `ADR_<識別碼>_檢驗資料.pdf` (A4, the
   case's 相關檢查及檢驗數據 and 檢查描述) into the month folder to upload under Upload Attachment,
   and 檢驗說明 points to it.
+- Drugs follow TFDA's 新增藥品 dialog. 快速搜尋 gets the product's 許可證字號 (best match first,
+  plus up to two alternatives), found by product name in `data/tfda-licenses.json`, a trimmed
+  copy of TFDA's public licence open data (valid finished-product licences). Refresh it with
+  `node tools/build-licenses.js 36_3.json` (instructions in the script).
 - **已完成 TFDA 通報** marks a case as done in this browser only.
 
 ## Privacy

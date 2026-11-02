@@ -75,6 +75,21 @@ test('maps a drug block onto the TFDA drug dialog', () => {
   assert.equal(f['再投藥是否出現同樣反應'].pick, '沒有再投予');
 });
 
+test('finds the licence number from the product names', () => {
+  const L = require('../licenses.js');
+  const index = L.buildIndex([
+    ['衛署藥製字第000001號', '假舒胃膜衣錠5毫克', 'FAKEPRIDE F.C. TABLETS 5MG', 'X', '膜衣錠', '甲公司'],
+    ['衛署藥製字第000002號', '"乙"順胃膜衣錠5毫克', 'Otherpride F.C. Tablet 5mg', 'X', '膜衣錠', '乙公司'],
+    ['衛署藥製字第000003號', '假舒胃注射液', 'FAKEPRIDE INJECTION', 'X', '注射劑', '甲公司'],
+  ]);
+  const hits = L.findLicenses(index, { en: 'Fakepride 5 mg', zh: '假舒胃膜衣錠' });
+  assert.equal(hits[0].license, '衛署藥製字第000001號');
+  const [drug] = F.parseDrugs('[藥品一]\n1. 英文商品名：Fakepride 5 mg\n2. 中文商品名：假舒胃膜衣錠');
+  const search = F.tfdaDrug(drug, q => L.findLicenses(index, q)).fields[0];
+  assert.equal(search.text, '衛署藥製字第000001號');
+  assert.ok(search.candidates.length >= 1);
+});
+
 test('builds TFDA sections and points lab results at the attachment', () => {
   const c = F.readCases([HEADER_A, rowA])[0];
   const { sections, warnings } = F.tfdaSections(c);

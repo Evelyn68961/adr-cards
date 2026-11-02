@@ -203,8 +203,22 @@
     return hit ? RECHALLENGE[hit[1]] : '';
   }
 
+  // A licence number in 快速搜尋 brings up exactly one product, which then
+  // fills 成分名, 許可證字號, 商品名, 廠牌 and 劑型 by itself.
+  function searchField(en, zh, lookup) {
+    const hits = lookup ? lookup({ en, zh }) : [];
+    if (!hits.length) {
+      return { label: '快速搜尋', text: searchKey(en) || zh, hint: '找不到許可證字號，改用名稱搜尋，再選對品項' };
+    }
+    return {
+      label: '快速搜尋（許可證字號）', text: hits[0].license, candidates: hits,
+      hint: hits[0].score < 0.9 ? '名稱不完全相符，請核對品名與廠牌' : '',
+    };
+  }
+
   // One drug block -> fields in the order of TFDA's 新增藥品 dialog.
-  function tfdaDrug(drug) {
+  // `lookup({ en, zh })` returns licence candidates (licenses.js), if loaded.
+  function tfdaDrug(drug, lookup) {
     const en = itemValue(drug, /英文/);
     const zh = itemValue(drug, /中文/);
     const doseText = itemValue(drug, /劑量/);
@@ -217,7 +231,7 @@
       title: drug.title,
       name: en || zh,
       fields: [
-        { label: '快速搜尋', text: searchKey(en) || zh, hint: '搜尋後選對品項，成分名、許可證字號、商品名、廠牌、劑型會自動帶入' },
+        searchField(en, zh, lookup),
         { label: '英文商品名（核對用）', text: en },
         { label: '中文商品名（核對用）', text: zh },
         { label: '劑量', text: dose, hint: !dose && doseText ? `無法拆分，原始內容：${doseText}` : '' },
@@ -253,7 +267,8 @@
 
   // Everything the TFDA form asks for, grouped by its tabs. A field is either
   // text to paste ({ text }) or a choice to click ({ options, pick }).
-  function tfdaSections(c) {
+  function tfdaSections(c, lookup) {
+    const drugs = text => parseDrugs(text).map(d => tfdaDrug(d, lookup));
     const age = splitAge(c.age);
     const warn = [];
     if (clean(c.description).length < DESCRIPTION_MIN) warn.push(`不良反應描述少於 ${DESCRIPTION_MIN} 字`);
@@ -297,9 +312,9 @@
           { label: '其他相關資料', text: isNone(c.other) ? '' : c.other, long: true },
         ] },
         { tab: 'Drug Information', drugs: [
-          { kind: '可疑藥品', list: parseDrugs(c.suspect).map(tfdaDrug) },
-          { kind: '併用藥品', list: parseDrugs(c.concomitant).map(tfdaDrug) },
-          { kind: '相互作用藥品', list: parseDrugs(c.interacting).map(tfdaDrug) },
+          { kind: '可疑藥品', list: drugs(c.suspect) },
+          { kind: '併用藥品', list: drugs(c.concomitant) },
+          { kind: '相互作用藥品', list: drugs(c.interacting) },
         ], fields: [
           { label: 'Naranjo score（參考）', text: [c.naranjoScore, c.naranjo].filter(Boolean).join('　') },
         ] },

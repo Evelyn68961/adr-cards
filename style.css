@@ -179,7 +179,12 @@ button:disabled { opacity: .4; cursor: default; }
 .tf-drugs { display: grid; gap: 12px; margin-bottom: 12px; }
 .tf-drug { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 16px; }
 .tf-drug-title { grid-column: 1 / -1; font-weight: 600; }
-.tf-drug .tf-field:has(.tf-options), .tf-drug .tf-field:first-of-type { grid-column: 1 / -1; }
+.tf-drug .tf-field:has(.tf-options), .tf-drug .tf-field:has(.tf-candidate) { grid-column: 1 / -1; }
+.tf-candidate { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 4px 12px; align-items: center; margin-bottom: 6px; }
+.tf-candidate .tf-hint { margin: 0; }
+.tf-candidate:not(.best) .copy { background: transparent; }
+.tf-candidate.best .copy { font-weight: 600; border-color: var(--accent); }
+@media (max-width: 620px) { .tf-candidate { grid-template-columns: 1fr; } }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel); padding: 8px 18px; border-radius: 999px; font-size: .9rem; }
 
 @media print {

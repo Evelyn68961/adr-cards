@@ -13,6 +13,23 @@
   let cases = [];
   let current = null;     // selected case
   let done = loadDone();
+  let lookup = null;      // licence finder, once data/tfda-licenses.json is loaded
+
+  async function loadLicenses() {
+    try {
+      const res = await fetch('data/tfda-licenses.json', { cache: 'no-store' });
+      const index = window.ADRLicenses.buildIndex((await res.json()).rows);
+      const cache = new Map();
+      lookup = q => {
+        const key = q.en + '|' + q.zh;
+        if (!cache.has(key)) cache.set(key, window.ADRLicenses.findLicenses(index, q));
+        return cache.get(key);
+      };
+      if (current) select(current);
+    } catch (e) {
+      lookup = null;  // page still works; 快速搜尋 falls back to the product name
+    }
+  }
 
   function loadDone() {
     try { return new Set(JSON.parse(localStorage.getItem(DONE_KEY) || '[]')); } catch (e) { return new Set(); }
@@ -165,6 +182,9 @@
       if (!f.pick && !f.hint) row.append(el('div', { class: 'tf-hint warn' }, `無法判斷，原始內容：${f.raw || '（空白）'}`));
     } else if (f.list) {
       row.append(f.list.length ? el('div', { class: 'tf-chips' }, ...f.list.map(s => copyable(s))) : el('div', { class: 'tf-hint' }, '（無）'));
+    } else if (f.candidates) {
+      row.append(...f.candidates.map((h, i) => el('div', { class: 'tf-candidate' + (i ? '' : ' best') },
+        copyable(h.license), el('div', { class: 'tf-hint' }, `${h.zh}｜${h.en}｜${h.company}`))));
     } else if (f.text !== '' || !f.hint) {
       row.append(copyable(f.text, f));
       if (f.max) row.append(el('div', { class: 'tf-hint' + (f.text.length > f.max ? ' warn' : '') }, `${f.text.length}/${f.max}`));
@@ -183,7 +203,7 @@
 
   function select(c) {
     current = c;
-    const { sections, warnings } = F.tfdaSections(c);
+    const { sections, warnings } = F.tfdaSections(c, lookup);
     const key = caseKey(c);
     const doneBox = el('input', { type: 'checkbox' });
     doneBox.checked = done.has(key);
@@ -320,4 +340,5 @@
   $('fileInput').addEventListener('change', e => e.target.files.length && loadPicked(e.target.files));
   $('allPdfBtn').addEventListener('click', () => makeAttachments(monthCases()));
   reload();
+  loadLicenses();
 })();
