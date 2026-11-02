@@ -14,11 +14,14 @@
   let current = null;     // selected case
   let done = loadDone();
   let lookup = null;      // licence finder, once data/tfda-licenses.json is loaded
+  let licenseIndex = null;
+  let reported = new Map();  // 識別碼 -> 藥碼 recorded in ADR通報.xlsx (HIS)
+  const hospitalCache = new Map();
 
   async function loadLicenses() {
     try {
       const res = await fetch('data/tfda-licenses.json', { cache: 'no-store' });
-      const index = window.ADRLicenses.buildIndex((await res.json()).rows);
+      const index = licenseIndex = window.ADRLicenses.buildIndex((await res.json()).rows);
       const cache = new Map();
       lookup = q => {
         const key = q.en + '|' + q.zh;
@@ -73,7 +76,85 @@
       const file = await (await f.dir.getFileHandle(f.name)).getFile();
       lists.push(...casesFromBytes(new Uint8Array(await file.arrayBuffer())));
     }
+    reported = await readReported();
     return { lists, names: found.map(f => f.path) };
+  }
+
+  // 藥碼 per 識別碼 from the monthly sheets of ADR通報.xlsx (識別碼 | 病歷號 | 姓名 | 藥碼 | …).
+  async function readReported() {
+    const map = new Map();
+    try {
+      const file = await (await folder.getFileHandle('ADR通報.xlsx')).getFile();
+      const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+      for (const n of wb.SheetNames) {
+        for (const r of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })) {
+          const id = String(r[0]).trim();
+          if (/^\d{7}$/.test(id) && r[3]) map.set(id, String(r[3]).trim().toUpperCase());
+        }
+      }
+    } catch (e) { /* no workbook: the hospital list is still searched by name */ }
+    return map;
+  }
+
+  // ---- hospital drug information system (through server.py) ----
+
+  function hospital(page, q) {
+    const key = page + '|' + q;
+    if (!hospitalCache.has(key)) {
+      hospitalCache.set(key, fetch(`api/hospital?page=${page}&q=${encodeURIComponent(q)}`,
+        { cache: 'no-store', headers: { 'X-ADR-Cards': '1' } })
+        .then(res => {
+          if (!res.ok) throw new Error('院內藥品資料庫連不上');
+          return res.text();
+        })
+        .catch(e => { hospitalCache.delete(key); throw e; }));
+    }
+    return hospitalCache.get(key);
+  }
+
+  const H = () => window.ADRHospital;
+  const hospitalDetail = code => hospital('P4', code).then(html => H().parseDetail(html));
+
+  // Hospital products for one drug on the form: those found by name, plus the
+  // 藥碼 HIS recorded for this case (suspect drugs only).
+  async function hospitalProducts(query, extraCode) {
+    const found = query ? H().parseSearch(await hospital('P3', query)).slice(0, 8) : [];
+    if (extraCode && !found.some(p => p.code === extraCode)) found.unshift({ code: extraCode });
+    const details = await Promise.all(found.map(p => hospitalDetail(p.code).catch(() => null)));
+    return details.filter(Boolean).map(d => Object.assign(d,
+      licenseIndex ? { tfda: window.ADRLicenses.licenseFromNhiCode(licenseIndex, d.nhi, d.zh) } : {}));
+  }
+
+  function hospitalBlock(f, hisCode) {
+    const box = el('div', { class: 'tf-hospital' }, el('div', { class: 'tf-hint' }, '查詢院內藥品資料庫…'));
+    const formZh = window.ADRLicenses.normZh(f.hospital.zh);
+    hospitalProducts(f.hospital.query, hisCode).then(products => {
+      if (!products.length) throw new Error('院內藥品資料庫沒有符合的品項');
+      products.sort((a, b) => (b.code === hisCode) - (a.code === hisCode));
+      box.replaceChildren(...products.map(p => {
+        const tags = [];
+        if (p.code === hisCode) tags.push('HIS 通報紀錄的藥碼');
+        const zh = window.ADRLicenses.normZh(p.zh);
+        if (formZh && zh && (formZh.includes(zh) || zh.includes(formZh))) tags.push('與表單中文品名相同');
+        const lic = p.tfda;
+        return el('div', { class: 'tf-candidate' + (tags.length ? ' best' : '') },
+          lic ? copyable(lic.license) : el('div', { class: 'tf-hint warn' }, `健保碼 ${p.nhi || '—'} 無法對應許可證`),
+          el('div', { class: 'tf-hint' },
+            el('a', { href: H().PAGE_URL + encodeURIComponent(p.code), target: '_blank', rel: 'noopener' }, p.code),
+            `｜${p.en}｜${p.zh}`, lic && lic.company ? `｜${lic.company}` : '', lic && lic.guessed ? '｜（由健保碼推算）' : '',
+            ...tags.map(t => el('span', { class: 'tf-tag' }, t))));
+      }), el('div', { class: 'tf-hint' }, '請以病人實際使用的院內品項為準（點藥碼可開啟院內藥品資料）。'));
+    }).catch(e => {
+      box.replaceChildren(el('div', { class: 'tf-hint warn' }, `${e.message}；以下是依品名比對 TFDA 許可證的結果。`),
+        ...nameCandidates(f));
+    });
+    return box;
+  }
+
+  function nameCandidates(f) {
+    if (!f.candidates) return [copyable(f.text)];
+    return f.candidates.map((h, i) => el('div', { class: 'tf-candidate' + (i ? '' : ' best') },
+      copyable(h.license), el('div', { class: 'tf-hint' }, `${h.zh}｜${h.en}｜${h.company}`)));
   }
 
   async function reload() {
@@ -174,8 +255,13 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 1200);
   }
 
-  function field(f) {
-    const row = el('div', { class: 'tf-field' + (f.long ? ' wide' : '') }, el('div', { class: 'tf-label' }, f.label));
+  function field(f, hisCode) {
+    const row = el('div', { class: 'tf-field' + (f.long ? ' wide' : '') + (f.hospital ? ' wide' : '') },
+      el('div', { class: 'tf-label' }, f.label));
+    if (f.hospital && folder) {
+      row.append(hospitalBlock(f, hisCode));
+      return row;
+    }
     if (f.options) {
       row.append(el('div', { class: 'tf-options' }, ...f.options.map(o =>
         el('span', { class: 'tf-option' + (o === f.pick ? ' picked' : '') }, o))));
@@ -183,8 +269,7 @@
     } else if (f.list) {
       row.append(f.list.length ? el('div', { class: 'tf-chips' }, ...f.list.map(s => copyable(s))) : el('div', { class: 'tf-hint' }, '（無）'));
     } else if (f.candidates) {
-      row.append(...f.candidates.map((h, i) => el('div', { class: 'tf-candidate' + (i ? '' : ' best') },
-        copyable(h.license), el('div', { class: 'tf-hint' }, `${h.zh}｜${h.en}｜${h.company}`))));
+      row.append(...nameCandidates(f));
     } else if (f.text !== '' || !f.hint) {
       row.append(copyable(f.text, f));
       if (f.max) row.append(el('div', { class: 'tf-hint' + (f.text.length > f.max ? ' warn' : '') }, `${f.text.length}/${f.max}`));
@@ -195,10 +280,11 @@
 
   function drugBlock(group) {
     if (!group.list.length) return null;
+    const hisCode = group.kind === '可疑藥品' ? reported.get(current.id) : null;
     return el('div', { class: 'tf-drugs' }, ...group.list.map(d =>
       el('div', { class: 'tf-drug' },
         el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`, el('span', { class: 'hint' }, `　按「新增${group.kind}」後依序填入`)),
-        ...d.fields.map(field))));
+        ...d.fields.map(f => field(f, hisCode)))));
   }
 
   function select(c) {
@@ -225,7 +311,7 @@
         el('h3', { class: 'tf-tab' }, s.tab),
         ...(s.drugs || []).map(drugBlock),
         s.drugs && !s.drugs[0].list.length ? el('div', { class: 'tf-hint warn' }, '沒有可疑藥品資料') : null,
-        el('div', { class: 'tf-grid' }, ...s.fields.map(field)))));
+        el('div', { class: 'tf-grid' }, ...s.fields.map(f => field(f))))));
     view.hidden = false;
     renderListMarks();
   }

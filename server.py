@@ -10,7 +10,9 @@ import os
 import shutil
 import sys
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -21,6 +23,11 @@ CONFIG = os.path.join(APP_DIR, 'adr-folder.txt')
 # Copies of the workbook taken before each overwrite; kept out of the ADR folder.
 BACKUP_DIR = os.path.join(APP_DIR, 'backups')
 BACKUPS_KEPT = 30
+# The hospital's drug information system (intranet). The TFDA page looks up
+# drug codes, product names and 健保碼 there; only its two search pages are
+# reachable through this helper.
+HOSPITAL_DRUG_DB = 'http://10.10.4.25:8080/Key_Search/'
+HOSPITAL_PAGES = {'P3', 'P4'}
 
 
 def backup(path):
@@ -89,6 +96,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if not os.path.isdir(base):
                     return self.reply(404, f'ADR folder not found: {base}')
                 return self.reply(200, json.dumps({'name': os.path.basename(base)}), 'application/json')
+            if url.path == '/api/hospital':
+                return self.hospital(url.query)
             path = self.target(url.query)
             if url.path == '/api/stat':
                 return self.reply(200 if os.path.isfile(path) else 404)
@@ -109,6 +118,21 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(404)
         except Exception as e:
             return self.reply(500, f'{type(e).__name__}: {e}')
+
+    def hospital(self, query):
+        params = urllib.parse.parse_qs(query)
+        page = params.get('page', [''])[0]
+        if page not in HOSPITAL_PAGES:
+            return self.reply(403, 'forbidden')
+        q = {'query': params.get('q', [''])[0]}
+        if page == 'P3':
+            # Search by drug code, generic name and product name only.
+            q.update(Code='true', PharNm='true', TrdNm='true', Pharm_e='false', Indications='false', ATC='false')
+        try:
+            with urllib.request.urlopen(HOSPITAL_DRUG_DB + page + '?' + urllib.parse.urlencode(q), timeout=15) as res:
+                return self.reply(200, res.read(), 'text/html; charset=utf-8')
+        except (urllib.error.URLError, OSError) as e:
+            return self.reply(502, f'院內藥品資料庫連不上：{e}')
 
     def do_PUT(self):
         url = urllib.parse.urlsplit(self.path)

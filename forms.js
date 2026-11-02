@@ -205,7 +205,14 @@
 
   // A licence number in 快速搜尋 brings up exactly one product, which then
   // fills 成分名, 許可證字號, 商品名, 廠牌 and 劑型 by itself.
+  // With the desktop helper the page replaces this field with the hospital's
+  // own drug list (`hospital`), and the name-based TFDA matches are the fallback.
   function searchField(en, zh, lookup) {
+    const hospital = { query: searchKey(en) || zh, en, zh };
+    return Object.assign(nameSearchField(en, zh, lookup), { hospital });
+  }
+
+  function nameSearchField(en, zh, lookup) {
     const hits = lookup ? lookup({ en, zh }) : [];
     if (!hits.length) {
       return { label: '快速搜尋', text: searchKey(en) || zh, hint: '找不到許可證字號，改用名稱搜尋，再選對品項' };

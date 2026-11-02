@@ -90,6 +90,26 @@ test('finds the licence number from the product names', () => {
   assert.ok(search.candidates.length >= 1);
 });
 
+test('reads hospital drug pages and maps 健保碼 to the licence', () => {
+  const H = require('../hospital.js');
+  const L = require('../licenses.js');
+  const search = '<div class="Subjectlist lookresult"><a href="/Key_Search/P4?query=FAK01"><div class="Subject">' +
+    '<div class="ImgLabelP3Frame"><div class="ImgLabelP3"><div class="label"><span>藥品學名</span></div>Fakepride 5 mg <i class="fas fa-pills"></i></div>' +
+    '<div class="ImgLabelP3"><div class="label"><span>英文商品名</span></div>Fake 錠劑 5 mg</div>' +
+    '<div class="ImgLabelP3"><div class="label"><span>中文商品名</span></div>假舒胃膜衣錠</div></div></div></a></div>';
+  assert.deepEqual(H.parseSearch(search), [{ code: 'FAK01', generic: 'Fakepride 5 mg', en: 'Fake 錠劑 5 mg', zh: '假舒胃膜衣錠' }]);
+  const page = '<div class="MedLabelText">藥碼</div></div><div class="MedInput"><div class="MedInputText">FAK01</div>' +
+    '<div class="MedLabelText">健保碼</div></div><div class="MedInput"><div class="MedInputText">AC000011G0</div>';
+  assert.equal(H.parseDetail(page).nhi, 'AC000011G0');
+  assert.equal(H.parseDetail('<p>nothing</p>'), null);
+  const index = L.buildIndex([['衛部藥製字第000001號', '假舒胃膜衣錠5毫克', 'FAKE', 'X', '錠', '甲'],
+    ['衛署藥輸字第000001號', '別的藥', 'OTHER', 'X', '錠', '乙']]);
+  assert.equal(L.licenseFromNhiCode(index, 'AC000011G0').license, '衛部藥製字第000001號');
+  assert.equal(L.licenseFromNhiCode(index, 'BC00001100').license, '衛署藥輸字第000001號');
+  assert.equal(L.licenseFromNhiCode(index, 'AC000021G0').guessed, true);
+  assert.equal(L.licenseFromNhiCode(index, 'X'), null);
+});
+
 test('builds TFDA sections and points lab results at the attachment', () => {
   const c = F.readCases([HEADER_A, rowA])[0];
   const { sections, warnings } = F.tfdaSections(c);

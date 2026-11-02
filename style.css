@@ -182,6 +182,8 @@ button:disabled { opacity: .4; cursor: default; }
 .tf-drug .tf-field:has(.tf-options), .tf-drug .tf-field:has(.tf-candidate) { grid-column: 1 / -1; }
 .tf-candidate { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 4px 12px; align-items: center; margin-bottom: 6px; }
 .tf-candidate .tf-hint { margin: 0; }
+.tf-candidate .tf-hint a { color: var(--accent); font-weight: 600; }
+.tf-tag { display: inline-block; margin-left: 6px; padding: 0 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-text); font-size: .75rem; }
 .tf-candidate:not(.best) .copy { background: transparent; }
 .tf-candidate.best .copy { font-weight: 600; border-color: var(--accent); }
 @media (max-width: 620px) { .tf-candidate { grid-template-columns: 1fr; } }
