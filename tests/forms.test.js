@@ -61,6 +61,20 @@ test('splits symptoms and drug blocks', () => {
   assert.deepEqual(F.parseDrugs('無'), []);
 });
 
+test('maps a drug block onto the TFDA drug dialog', () => {
+  const [drug] = F.parseDrugs('[藥品一]\n1. 英文商品名：CEFIN FOR I.V. INJECTION "X"\n2. 中文商品名：假針\n3. 給藥頻率：STAT\n' +
+    '4. 給藥劑量，包含單位：1.2g\n5. 起始日期：2026-10-12\n6. 結束日期：2026-10-16\n9. 批號：未知\n' +
+    '11. 處置情形：未改變劑量\n12. 再投藥是否出現同樣反應：沒有再投予、未知');
+  const f = Object.fromEntries(F.tfdaDrug(drug).fields.map(x => [x.label, x]));
+  assert.equal(f['快速搜尋'].text, 'CEFIN');
+  assert.equal(f['劑量'].text, '1.2');
+  assert.equal(f['劑量單位'].text, 'g');
+  assert.equal(f['藥品使用時間'].text, '5');
+  assert.equal(f['批號'].text, '');
+  assert.equal(f['處置情形'].pick, '未改變劑量');
+  assert.equal(f['再投藥是否出現同樣反應'].pick, '沒有再投予');
+});
+
 test('builds TFDA sections and points lab results at the attachment', () => {
   const c = F.readCases([HEADER_A, rowA])[0];
   const { sections, warnings } = F.tfdaSections(c);

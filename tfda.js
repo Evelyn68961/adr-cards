@@ -176,8 +176,9 @@
   function drugBlock(group) {
     if (!group.list.length) return null;
     return el('div', { class: 'tf-drugs' }, ...group.list.map(d =>
-      el('div', { class: 'tf-drug' }, el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}`),
-        ...d.items.map(i => el('div', { class: 'tf-field' }, el('div', { class: 'tf-label' }, i.label), copyable(i.value))))));
+      el('div', { class: 'tf-drug' },
+        el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`, el('span', { class: 'hint' }, `　按「新增${group.kind}」後依序填入`)),
+        ...d.fields.map(field))));
   }
 
   function select(c) {

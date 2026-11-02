@@ -166,6 +166,76 @@
     }
   }
 
+  const DISPOSITIONS = ['停藥', '降低劑量', '增加劑量', '未改變劑量', '未知', '不適用'];
+  const RECHALLENGE = ['有再投予且不良反應再發生', '有再投予但不良反應未發生', '有再投予但結果未知', '沒有再投予'];
+
+  const itemValue = (drug, re) => {
+    const v = ((drug.items.find(i => re.test(i.label)) || {}).value || '').trim();
+    return /^(未知|不詳|無|n\/a)$/i.test(v) ? '' : v;
+  };
+
+  // "1.2g" -> ["1.2", "g"]; "160 mg (1 tab)" -> ["160", "mg"]; free text ("適量") -> ["", ""]
+  function splitDose(v) {
+    const m = String(v).replace(/^.*[：:]/, '').replace(/\s*[(（][^)）]*[)）]\s*$/, '').match(/^\s*([\d.]+)\s*([^\d\s/&]*)\s*$/);
+    return m ? [m[1], m[2]] : ['', ''];
+  }
+
+  // Days from start to end, both counted.
+  function useDays(start, end) {
+    const a = Date.parse(start), b = Date.parse(end);
+    if (isNaN(a) || isNaN(b) || b < a) return '';
+    return String(Math.round((b - a) / 86400000) + 1);
+  }
+
+  // TFDA's quick search matches a product name; the first word of the English
+  // brand name ("CEFIN FOR I.V. INJECTION …" -> "CEFIN") finds it most often.
+  const searchKey = name => (String(name).match(/[A-Za-z][A-Za-z-]*/) || [''])[0];
+
+  function pickFrom(options, v) {
+    // Longest option first, so "未改變劑量" is not taken for "未知" etc.
+    return [...options].sort((a, b) => b.length - a.length).find(o => v.includes(o)) || '';
+  }
+
+  // Older forms say "有再投予且不良反應未發生", so match on meaning, not exact text.
+  function pickRechallenge(v) {
+    const rules = [[/沒有再投|未再投/, 3], [/未發生/, 1], [/結果未知/, 2], [/再發生|再度發生/, 0]];
+    const hit = rules.find(([re]) => re.test(v));
+    return hit ? RECHALLENGE[hit[1]] : '';
+  }
+
+  // One drug block -> fields in the order of TFDA's 新增藥品 dialog.
+  function tfdaDrug(drug) {
+    const en = itemValue(drug, /英文/);
+    const zh = itemValue(drug, /中文/);
+    const doseText = itemValue(drug, /劑量/);
+    const [dose, doseUnit] = splitDose(doseText);
+    const start = itemValue(drug, /起始/), end = itemValue(drug, /結束/);
+    const days = useDays(start, end);
+    const disposition = itemValue(drug, /處置/);
+    const rechallenge = itemValue(drug, /再投/);
+    return {
+      title: drug.title,
+      name: en || zh,
+      fields: [
+        { label: '快速搜尋', text: searchKey(en) || zh, hint: '搜尋後選對品項，成分名、許可證字號、商品名、廠牌、劑型會自動帶入' },
+        { label: '英文商品名（核對用）', text: en },
+        { label: '中文商品名（核對用）', text: zh },
+        { label: '劑量', text: dose, hint: !dose && doseText ? `無法拆分，原始內容：${doseText}` : '' },
+        { label: '劑量單位', text: doseUnit },
+        { label: '給藥頻率（下拉選）', text: itemValue(drug, /頻率/) },
+        { label: '給藥途徑（下拉選）', text: itemValue(drug, /途徑/) },
+        { label: '用藥起始日期', text: start },
+        { label: '用藥結束日期', text: end },
+        { label: '藥品使用時間', text: days, hint: days ? '單位選「天」' : '' },
+        { label: '用藥原因', text: itemValue(drug, /原因/), long: true },
+        { label: '批號', text: itemValue(drug, /批號/) },
+        { label: '效期', text: isoDate(itemValue(drug, /效期/)) },
+        { label: '處置情形', options: DISPOSITIONS, pick: pickFrom(DISPOSITIONS, disposition), raw: disposition },
+        { label: '再投藥是否出現同樣反應', options: RECHALLENGE, pick: pickRechallenge(rechallenge), raw: rechallenge },
+      ],
+    };
+  }
+
   const DESCRIPTION_MIN = 20;
   const LAB_NOTE_MAX = 250;
 
@@ -227,9 +297,9 @@
           { label: '其他相關資料', text: isNone(c.other) ? '' : c.other, long: true },
         ] },
         { tab: 'Drug Information', drugs: [
-          { kind: '可疑藥品', list: parseDrugs(c.suspect) },
-          { kind: '併用藥品', list: parseDrugs(c.concomitant) },
-          { kind: '相互作用藥品', list: parseDrugs(c.interacting) },
+          { kind: '可疑藥品', list: parseDrugs(c.suspect).map(tfdaDrug) },
+          { kind: '併用藥品', list: parseDrugs(c.concomitant).map(tfdaDrug) },
+          { kind: '相互作用藥品', list: parseDrugs(c.interacting).map(tfdaDrug) },
         ], fields: [
           { label: 'Naranjo score（參考）', text: [c.naranjoScore, c.naranjo].filter(Boolean).join('　') },
         ] },
@@ -256,7 +326,7 @@
   const monthOf = c => c.id.slice(0, 5);
 
   const api = {
-    readCases, mergeCases, isoDate, splitAge, splitSymptoms, parseDrugs, pickSource, pickSeriousness,
+    readCases, mergeCases, isoDate, splitAge, splitSymptoms, parseDrugs, tfdaDrug, pickSource, pickSeriousness,
     pickOutcome, tfdaSections, attachmentContent, attachmentName, hasLabs, monthOf, isNone,
     SOURCES, SERIOUSNESS, OUTCOMES, AGE_KINDS,
   };
