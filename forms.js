@@ -326,7 +326,7 @@
           { label: 'Naranjo score（參考）', text: [c.naranjoScore, c.naranjo].filter(Boolean).join('　') },
         ] },
         { tab: 'Upload Attachment', fields: [
-          { label: '附件', text: hasLabs(c) ? attachmentName(c) : '', hint: hasLabs(c) ? '按「檢驗資料 PDF」產生後上傳' : '無檢驗資料' },
+          hasLabs(c) ? { label: '附件', attachment: true } : { label: '附件', text: '', hint: '無檢驗資料，不需附件' },
         ] },
       ],
     };

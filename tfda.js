@@ -262,6 +262,10 @@
       row.append(hospitalBlock(f, hisCode));
       return row;
     }
+    if (f.attachment) {
+      row.append(attachmentBlock(current));
+      return row;
+    }
     if (f.options) {
       row.append(el('div', { class: 'tf-options' }, ...f.options.map(o =>
         el('span', { class: 'tf-option' + (o === f.pick ? ' picked' : '') }, o))));
@@ -304,7 +308,7 @@
         el('h2', {}, `${c.id}　${c.chartNo}`),
         el('span', { class: 'hint' }, `撰寫：${c.trainee || c.reporter || '—'}`),
         el('span', { class: 'actions' },
-          F.hasLabs(c) ? el('button', { type: 'button', onclick: () => makeAttachments([c]) }, '檢驗資料 PDF') : null,
+          F.hasLabs(c) ? el('button', { type: 'button', onclick: async () => { await makeAttachments([c]); select(c); } }, '檢驗資料 PDF') : null,
           el('label', { class: 'done-toggle' }, doneBox, '已完成 TFDA 通報')),
         warnings.length ? el('ul', { class: 'messages' }, ...warnings.map(w => el('li', { class: 'warn' }, w))) : null),
       ...sections.map(s => el('section', { class: 'panel tf-section' },
@@ -388,7 +392,36 @@
     return new Blob([window.ADRPdf.build(out, { width: 595.28, height: 841.89 })], { type: 'application/pdf' });
   }
 
-  async function makeAttachments(list) {
+  // The case's lab PDF: where it is, whether it exists yet, and buttons to
+  // make or open it.
+  function attachmentBlock(c) {
+    const name = F.attachmentName(c);
+    const dirName = 'ADR_' + F.monthOf(c);
+    const box = el('div', { class: 'tf-attachment' });
+    const show = async () => {
+      let file = null;
+      if (folder) {
+        try { file = await (await (await folder.getDirectoryHandle(dirName)).getFileHandle(name)).getFile(); } catch (e) { file = null; }
+      }
+      const make = el('button', { type: 'button', class: file ? 'secondary' : '' }, file ? '重新產生' : '產生檢驗資料 PDF');
+      make.addEventListener('click', async () => {
+        make.disabled = true;
+        await makeAttachments([c], { open: true });
+        show();
+      });
+      box.replaceChildren(
+        copyable(name),
+        el('div', { class: 'tf-hint' + (file ? '' : ' warn') },
+          file ? `已產生，位置：${folder.name}\\${dirName}\\${name}。在 TFDA 按「新增附件」，選這個檔案上傳。`
+            : folder ? `尚未產生。按下方按鈕，會存到 ${folder.name}\\${dirName}\\ 並開啟。` : '尚未產生。按下方按鈕下載。'),
+        el('div', { class: 'actions' }, make,
+          file ? el('button', { type: 'button', onclick: () => window.open(URL.createObjectURL(file), '_blank') }, '開啟 PDF') : null));
+    };
+    show();
+    return box;
+  }
+
+  async function makeAttachments(list, { open = list.length === 1 } = {}) {
     list = list.filter(F.hasLabs);
     const status = $('pdfStatus');
     status.textContent = '產生中…';
@@ -410,7 +443,7 @@
           saved.push(name);
           await new Promise(r => setTimeout(r, 250));
         }
-        if (list.length === 1) window.open(URL.createObjectURL(blob), '_blank');
+        if (open) window.open(URL.createObjectURL(blob), '_blank');
       }
       status.textContent = folder ? `已儲存 ${saved.length} 個：${saved.join('、')}` : `已下載 ${saved.length} 個`;
       toast(`檢驗資料 PDF：${saved.length} 個`);
@@ -424,7 +457,10 @@
   $('month').addEventListener('change', () => { current = null; renderList(); });
   $('reloadBtn').addEventListener('click', reload);
   $('fileInput').addEventListener('change', e => e.target.files.length && loadPicked(e.target.files));
-  $('allPdfBtn').addEventListener('click', () => makeAttachments(monthCases()));
+  $('allPdfBtn').addEventListener('click', async () => {
+    await makeAttachments(monthCases());
+    if (current) select(current);
+  });
   reload();
   loadLicenses();
 })();
