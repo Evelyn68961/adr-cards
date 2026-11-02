@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TFDA 通報小幫手</title>
+  <link rel="stylesheet" href="style.css?v=20261102">
+</head>
+<body>
+  <header>
+    <nav class="nav"><a href="index.html">ADR 通報卡</a><span aria-current="page">TFDA 通報小幫手</span></nav>
+    <h1>TFDA 通報小幫手</h1>
+    <p class="privacy">資料只在這台電腦的瀏覽器中處理，不會上傳。點任一格內容即可複製，再貼到 TFDA 表單。</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="step-row">
+        <span class="step">通報表資料</span>
+        <span class="actions">
+          <select id="month" aria-label="月份"></select>
+          <button id="reloadBtn" type="button" class="secondary">重新讀取</button>
+          <label class="file-btn secondary">選擇檔案<input id="fileInput" type="file" accept=".xls,.xlsx" multiple hidden></label>
+        </span>
+      </div>
+      <p id="sourceStatus" class="hint">讀取中…</p>
+      <div id="caseList" class="case-list"></div>
+      <div class="controls">
+        <button id="allPdfBtn" type="button" class="secondary" disabled>本月全部檢驗資料 PDF</button>
+        <span id="pdfStatus" class="hint"></span>
+      </div>
+    </section>
+
+    <section id="caseView" hidden></section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="lib/xlsx.full.min.js?v=20261030"></script>
+  <script src="pdf.js?v=20261030"></script>
+  <script src="local.js?v=20261030"></script>
+  <script src="forms.js?v=20261102"></script>
+  <script src="tfda.js?v=20261102"></script>
+</body>
+</html>

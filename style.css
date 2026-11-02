@@ -139,6 +139,48 @@ button:disabled { opacity: .4; cursor: default; }
 
 .print-area { display: none; }
 
+/* Page links */
+.nav { display: flex; gap: 16px; font-size: .9rem; margin-bottom: 8px; }
+.nav a { color: var(--accent); }
+.nav [aria-current] { color: var(--muted); }
+
+/* TFDA helper */
+.file-btn { font: inherit; padding: 6px 16px; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); cursor: pointer; }
+.case-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.case-btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; max-width: 220px; text-align: left; background: var(--panel); color: var(--text); border-color: var(--border); }
+.case-btn span { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.case-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.case-btn.done { background: var(--ok-bg); }
+.case-btn .case-flag { color: var(--warn-text); font-weight: 600; }
+.case-btn .case-flag.ok { color: var(--ok-text); }
+.case-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.case-head h2 { margin: 0; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.case-head .actions { margin-left: auto; align-items: center; }
+.case-head .messages { flex-basis: 100%; margin: 0; }
+.done-toggle { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.tf-tab { margin: 0 0 12px; font-size: 1rem; color: var(--accent); }
+.tf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px 20px; }
+.tf-field { min-width: 0; }
+.tf-field.wide { grid-column: 1 / -1; }
+.tf-label { font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+.tf-hint { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+.tf-hint.warn { color: var(--warn-text); font-weight: 600; }
+.tf-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-option { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: .85rem; }
+.tf-option.picked { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.tf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tf-chips .copy { width: auto; }
+.copy { display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafb; color: var(--text); border: 1px solid var(--border); padding: 6px 10px; min-height: 34px; font-variant-numeric: tabular-nums; }
+.copy:hover { border-color: var(--accent); background: #eef6f6; }
+.copy.long { max-height: 220px; overflow-y: auto; }
+.copy.empty { color: var(--muted); cursor: default; }
+.copy.used { border-color: var(--ok-text); }
+.copy.copied { background: var(--ok-bg); border-color: var(--accent); }
+.tf-drugs { display: grid; gap: 12px; margin-bottom: 12px; }
+.tf-drug { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 16px; }
+.tf-drug-title { grid-column: 1 / -1; font-weight: 600; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel); padding: 8px 18px; border-radius: 999px; font-size: .9rem; }
+
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff; }

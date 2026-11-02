@@ -70,6 +70,22 @@ The HIS ADR export (17 columns, tab-separated):
 - **症狀**: commas become `、`.
 - **通報人員**: the 記錄來源 column as-is.
 
+## TFDA helper (`tfda.html`)
+
+For entering finished report forms into the TFDA online ADR form.
+
+- Reads every `*通報表*.xls(x)` export in the ADR folder and its `ADR_<yyyMM>` folders (or a picked
+  file). Form versions with different column orders are handled; a case exported twice keeps the
+  most complete copy.
+- Pick a month and a case. The case is laid out in the TFDA tabs (General, Patient, Reaction 1/2,
+  Drug, Upload). Click any value to copy it; choices show the option to click on TFDA, mapped from
+  the internal wording (e.g. 民眾 → 民眾或其他非醫療人員, 其他嚴重不良反應 →
+  Other Medically Important Condition).
+- Lab results are not typed in: **檢驗資料 PDF** writes `ADR_<識別碼>_檢驗資料.pdf` (A4, the
+  case's 相關檢查及檢驗數據 and 檢查描述) into the month folder to upload under Upload Attachment,
+  and 檢驗說明 points to it.
+- **已完成 TFDA 通報** marks a case as done in this browser only.
+
 ## Privacy
 
 Everything runs in the browser; nothing is uploaded. The only files written are the ones in the
