@@ -157,9 +157,16 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(500, f'{type(e).__name__}: {e}')
 
 
+class Server(ThreadingHTTPServer):
+    # On Windows, SO_REUSEADDR lets a second copy bind the same port, so an
+    # old copy could keep answering after an update. Without it the second
+    # copy fails to bind and just opens the browser.
+    allow_reuse_address = False
+
+
 def main(open_browser=True):
     try:
-        server = ThreadingHTTPServer((HOST, PORT), Handler)
+        server = Server((HOST, PORT), Handler)
     except OSError:
         # Already running: just show it.
         if open_browser:
