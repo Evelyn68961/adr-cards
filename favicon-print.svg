@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- ADR 卡片列印: teal tile, white printer with a card coming out. -->
+  <rect width="32" height="32" rx="7" fill="#2f6f73"/>
+  <rect x="9" y="5" width="14" height="7" rx="1" fill="#fff"/>
+  <rect x="4.5" y="11" width="23" height="11" rx="3" fill="#fff"/>
+  <circle cx="23.5" cy="15" r="1.3" fill="#c62828"/>
+  <rect x="8.5" y="18" width="15" height="10" rx="1.2" fill="#ffd54f" stroke="#2f6f73" stroke-width="1.5"/>
+  <path d="M11.5 21.5h9M11.5 24.5h6" stroke="#2f6f73" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

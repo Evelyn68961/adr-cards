@@ -77,6 +77,18 @@ The HIS ADR export (17 columns, tab-separated):
 - **症狀**: commas become `、`.
 - **通報人員**: the 記錄來源 column as-is.
 
+## Card printing (`print.html`)
+
+For printing cards that are already saved, in any combination.
+
+- Shows the `ADR_<識別碼>.png` images in each `ADR_<yyyMM>` folder, one month at a time (or
+  picked files, without the desktop helper).
+- Click cards to select them; the selection is kept when you switch months. **本月全選** /
+  **全不選**.
+- **產生 PDF** opens a PDF of the selected cards in 識別碼 order, 4 per landscape A4 page (same
+  layout as the main page), ready to print. Nothing is written to the ADR folder; use the link
+  under the button to download it.
+
 ## TFDA helper (`tfda.html`)
 
 For entering finished report forms into the TFDA online ADR form.

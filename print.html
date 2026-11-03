@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADR 卡片列印</title>
+  <link rel="icon" type="image/svg+xml" href="favicon-print.svg">
+  <link rel="stylesheet" href="style.css?v=20261103">
+</head>
+<body>
+  <header>
+    <nav class="nav"><a href="index.html">ADR 通報卡</a><span aria-current="page">卡片列印</span><a href="tfda.html">TFDA 通報小幫手</a></nav>
+    <h1>卡片列印</h1>
+    <p class="privacy">點選已存好的卡片，合併成 A4 PDF（每頁 4 張）列印。</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="step-row">
+        <span class="step">月份</span>
+        <select id="month" aria-label="月份"></select>
+        <span id="folderStatus" class="folder-status"></span>
+        <label class="file-btn">選擇卡片圖檔…<input id="pick" type="file" accept="image/png" multiple hidden></label>
+      </div>
+      <p class="hint">點一下卡片選取，再點一下取消。PDF 依識別碼順序排列。</p>
+      <div class="step-row pr-actions">
+        <button id="allBtn" type="button" class="secondary">本月全選</button>
+        <button id="noneBtn" type="button" class="secondary">全不選</button>
+        <span id="count" class="hint"></span>
+        <button id="pdfBtn" type="button" disabled>產生 PDF</button>
+      </div>
+      <ul id="messages" class="messages"></ul>
+      <div id="grid" class="pr-grid"></div>
+    </section>
+  </main>
+
+  <script src="pdf.js?v=20261030"></script>
+  <script src="local.js?v=20261030"></script>
+  <script src="print.js?v=20261103"></script>
+</body>
+</html>

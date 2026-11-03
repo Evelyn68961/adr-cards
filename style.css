@@ -190,6 +190,16 @@ button:disabled { opacity: .4; cursor: default; }
 @media (max-width: 620px) { .tf-candidate { grid-template-columns: 1fr; } }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--panel); padding: 8px 18px; border-radius: 999px; font-size: .9rem; }
 
+/* Card printing (print.html) */
+.pr-actions { margin-top: 10px; flex-wrap: wrap; }
+.pr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 14px; }
+.pr-card { position: relative; display: block; padding: 4px; background: var(--panel); border: 2px solid var(--border); border-radius: 8px; color: var(--text); text-align: left; }
+.pr-card img { display: block; width: 100%; aspect-ratio: 1128 / 825; object-fit: contain; background: var(--bg); border-radius: 4px; }
+.pr-card.chosen { border-color: var(--accent); box-shadow: 0 0 0 3px var(--ok-bg); }
+.pr-card:not(.chosen) img { opacity: .75; }
+.pr-label { display: block; padding: 4px 2px 0; font-size: .9rem; font-weight: 600; }
+.pr-card.chosen::after { content: "✓"; position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 700; }
+
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff; }
