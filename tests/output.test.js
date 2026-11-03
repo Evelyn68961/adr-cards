@@ -62,6 +62,49 @@ test('appendRows overwrites a changed case in place, by key or by 識別碼', ()
   assert.deepEqual([sheet[2][0], sheet[2][3], sheet[2][4]], ['1151002', 'PRO23', 'PromERAN 針']);
 });
 
+test('a 識別碼 is never taken over from another patient', () => {
+  const [a] = P.assignIds(P.parseText(row(1, '2026/11/02 11:50:00')).rows, 1);
+  const { bytes } = W.appendRows(XLSX, P, null, [a]);
+  const ledger = W.readLedger(XLSX, P, bytes);
+  const view = {
+    idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null,
+    nextSeq: () => 1,
+    taken: (id, chartNo) => ledger.owners.has(id) && ledger.owners.get(id) !== chartNo,
+  };
+  // Start number typed as 1, which 000000001Z already holds.
+  const [b] = P.assignIds(P.parseText(row(2, '2026/11/03 14:57:00')).rows, 1, view);
+  assert.equal(b.id, '1151102');
+  // Even when handed a clashing number, the other patient's row stays.
+  const r = W.appendRows(XLSX, P, bytes, [Object.assign({}, b, { id: '1151101' })]);
+  assert.equal(r.updated.length, 0);
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(r.bytes, { type: 'array' }).Sheets['202611'], { header: 1 });
+  assert.equal(sheet[1][1], '000000001Z');
+});
+
+test('a 識別碼 carried by two cases is renumbered on the next save', () => {
+  const cards = P.assignIds(P.parseText([row(1, '2026/11/02 11:50:00'), row(2, '2026/11/03 14:57:00')].join('\n')).rows, 1)
+    .map(c => Object.assign(c, { id: '1151101' }));
+  const { bytes } = W.appendRows(XLSX, P, null, cards.slice(0, 1));
+  const both = W.appendRows(XLSX, P, bytes, [Object.assign({}, cards[1], { id: '' })]).bytes;
+  // Simulate the clash: write 1151101 onto the second row too.
+  const wb = XLSX.read(both, { type: 'array', cellDates: true });
+  wb.Sheets['202611'].A3 = { t: 's', v: '1151101' };
+  const clashed = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+
+  const ledger = W.readLedger(XLSX, P, clashed);
+  assert.equal(ledger.months['202611'].maxSeq, 1);
+  const view = {
+    idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null,
+    nextSeq: key => ledger.months['202611'].maxSeq + 1,
+    taken: (id, chartNo) => ledger.owners.has(id) && ledger.owners.get(id) !== chartNo,
+  };
+  const again = P.assignIds(P.parseText([row(1, '2026/11/02 11:50:00'), row(2, '2026/11/03 14:57:00')].join('\n')).rows, null, view);
+  assert.deepEqual(again.map(c => c.id), ['1151101', '1151102']);
+  const r = W.appendRows(XLSX, P, clashed, again);
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(r.bytes, { type: 'array' }).Sheets['202611'], { header: 1 });
+  assert.deepEqual(sheet.slice(1).map(s => [s[0], s[1]]), [['1151101', '000000001Z'], ['1151102', '000000002Z']]);
+});
+
 test('appendRows does not expand a whole-row column width rule', () => {
   const ws = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER]);
   ws['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));

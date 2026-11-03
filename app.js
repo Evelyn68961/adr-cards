@@ -436,6 +436,10 @@
     return {
       idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null,
       nextSeq,
+      // A number in Excel for another patient, or a card image not in Excel.
+      taken: (id, chartNo) => ledger.owners.has(id)
+        ? ledger.owners.get(id) !== String(chartNo).toUpperCase()
+        : (pngs[id.slice(0, 5)] || new Set()).has(pngFor(id)),
     };
   }
 
@@ -448,7 +452,7 @@
     try {
       const book = await existingFile(folder, WORKBOOK_NAME);
       const bytes = book ? new Uint8Array(await (await book.getFile()).arrayBuffer()) : null;
-      const next = bytes ? W.readLedger(window.XLSX, P, bytes) : { months: {}, ids: new Map() };
+      const next = bytes ? W.readLedger(window.XLSX, P, bytes) : { months: {}, ids: new Map(), owners: new Map() };
       const keys = new Set([
         ...Object.values(next.months).map(m => m.key),
         ...cards.map(c => c.id.slice(0, 5)),

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- ADR 通報卡: red tile, white capsule with an alert mark. -->
+  <rect width="32" height="32" rx="7" fill="#c62828"/>
+  <g transform="rotate(-45 16 16)">
+    <rect x="4" y="10.5" width="24" height="11" rx="5.5" fill="#fff"/>
+    <path d="M16 10.5h6.5a5.5 5.5 0 0 1 0 11H16z" fill="#ffcdd2"/>
+  </g>
+  <circle cx="25" cy="25" r="5.5" fill="#ffd54f" stroke="#c62828" stroke-width="1.5"/>
+  <path d="M25 21.8v3.6" stroke="#c62828" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="25" cy="27.6" r="1" fill="#c62828"/>
+</svg>
