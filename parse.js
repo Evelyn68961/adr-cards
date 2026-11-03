@@ -166,8 +166,7 @@
   // Sorts by 得知日期 (date + time) and assigns 識別碼. Cases the workbook already
   // holds keep their number (`ledger.idFor`, marked `recorded`). `startSeq`, when
   // given, applies to the earliest month with new cases; every other month
-  // continues from `ledger.nextSeq(key)`, or 1 without a ledger. Numbers that
-  // belong to another patient (`ledger.taken(id, chartNo)`) are skipped.
+  // continues from `ledger.nextSeq(key)`, or 1 without a ledger.
   function assignIds(rows, startSeq, ledger) {
     const sorted = rows.slice().sort((a, b) => a.date - b.date);
     const known = r => (ledger ? ledger.idFor(r) : null);
@@ -182,9 +181,8 @@
         counters[key] = key === firstKey && startSeq ? Math.max(1, startSeq | 0)
           : ledger ? ledger.nextSeq(key) : 1;
       }
-      const idOf = seq => key + String(seq).padStart(2, '0');
-      while (ledger && ledger.taken && ledger.taken(idOf(counters[key]), r.chartNo)) counters[key]++;
-      return Object.assign({}, r, { id: idOf(counters[key]++) });
+      const seq = counters[key]++;
+      return Object.assign({}, r, { id: key + String(seq).padStart(2, '0') });
     });
   }
 

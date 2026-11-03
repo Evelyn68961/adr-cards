@@ -86,6 +86,16 @@
       msgs.unshift({ cls: 'ok', text: `共 ${cards.length} 張卡片，已依得知日期時間排序。` +
         (recorded ? `其中 ${recorded} 張已在 Excel，沿用原識別碼。` : '') });
     }
+    if (ledger) {
+      // A typed number already in Excel: this case replaces what holds it.
+      fresh.forEach(c => {
+        const rows = Object.values(ledger.months).flatMap(m => m.rows).filter(r => r.id === c.id);
+        if (rows.length) {
+          msgs.push({ cls: 'warn', text: `${c.id} 已在 Excel：儲存後將以本卡（${c.name} ${c.drug}）取代 ` +
+            rows.map(r => `${r.name} ${r.drug}`).join('、') + '。' });
+        }
+      });
+    }
     if (ledger && startTouched && fresh.length) {
       const expected = nextSeq(fresh[0].id.slice(0, 5));
       if (Number(fresh[0].id.slice(5)) !== expected) {
@@ -436,10 +446,6 @@
     return {
       idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null,
       nextSeq,
-      // A number in Excel for another patient, or a card image not in Excel.
-      taken: (id, chartNo) => ledger.owners.has(id)
-        ? ledger.owners.get(id) !== String(chartNo).toUpperCase()
-        : (pngs[id.slice(0, 5)] || new Set()).has(pngFor(id)),
     };
   }
 
@@ -556,7 +562,7 @@
       const fileHandle = await existingFile(folder, WORKBOOK_NAME);
       const original = fileHandle ? new Uint8Array(await (await fileHandle.getFile()).arrayBuffer()) : null;
       const result = W.appendRows(window.XLSX, P, original, cards.map(excelRow));
-      if (result.added.length || result.updated.length) {
+      if (result.added.length || result.updated.length || result.removed.length) {
         try {
           await writeFile(folder, WORKBOOK_NAME, result.bytes);
         } catch (e) {
@@ -568,6 +574,10 @@
         }
         if (result.updated.length) {
           msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：覆寫 ${result.updated.length} 列：${result.updated.map(u => u.row.id).join('、')}` });
+        }
+        if (result.removed.length) {
+          msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：刪除被取代的 ${result.removed.length} 列：` +
+            result.removed.map(d => `${d.values[0]} ${d.values[2]} ${P.cleanDrug(d.values[4])}`).join('、') });
         }
       }
       if (result.duplicates.length) {

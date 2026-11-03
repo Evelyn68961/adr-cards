@@ -39,18 +39,19 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 ## Writing to the workbook
 
 - Rows go to the sheet for their month (`202610`, `202611`, …), created if missing.
-- A case already in the sheet (same 病歷號 + 藥碼 + 得知日期, or else the same 識別碼 on the same
-  病歷號) is never added twice: saving again **overwrites** that row with the card's current values (hand fixes to
+- A case already in the sheet (same 病歷號 + 藥碼 + 得知日期) is never added twice: saving again **overwrites** that row with the card's current values (hand fixes to
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期.
 - With the desktop shortcut, the previous workbook is copied to `backups\` in this folder
   (latest 30) before each write; nothing extra is put in the ADR folder.
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.
 - Card PNGs are always written as the card is now, replacing an older image of the same 識別碼.
-- A 識別碼 is never reused for another patient: a typed 起始流水號 skips numbers that Excel holds
-  for a different 病歷號 (or that have a card image but no Excel row). A typed number on the
-  same 病歷號 overwrites that case. If two Excel rows carry the same 識別碼, the later one gets a
-  new number the next time it is pasted and saved.
+- A typed 起始流水號 means "this case is that number": a new case given a 識別碼 that Excel already
+  holds replaces it. Its row takes the place of the first row with that number, every other row
+  with that number is removed, and its card image replaces the old one. The page warns which
+  case will be replaced before you save.
+- If two Excel rows carry the same 識別碼 (left over from older versions), the first keeps it and
+  the later one gets a new number the next time it is pasted and saved without a typed number.
 - Rewriting uses SheetJS, which keeps values, number formats and column widths but may drop
   cell styling such as fonts and fills.
 
