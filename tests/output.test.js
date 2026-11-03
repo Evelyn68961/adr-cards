@@ -46,6 +46,22 @@ test('appendRows with nothing new returns the original bytes', () => {
   assert.equal(again.bytes, bytes);
 });
 
+test('appendRows overwrites a changed case in place, by key or by 識別碼', () => {
+  const cards = P.assignIds(P.parseText([row(1, '2026/10/17 10:52:08'), row(2, '2026/10/20 14:26:51')].join('\n')).rows, 1);
+  const { bytes } = W.appendRows(XLSX, P, null, cards);
+  // Same case, symptom fixed by hand.
+  const fixed = Object.assign({}, cards[0], { symptomRaw: 'Rash、Itching' });
+  // A corrected HIS row (other drug code) reusing 1151002.
+  const redo = Object.assign({}, cards[1], { drugCode: 'PRO23', drugRaw: 'PromERAN 針' });
+  const r = W.appendRows(XLSX, P, bytes, [fixed, redo]);
+  assert.deepEqual(r.updated.map(u => u.row.id), ['1151001', '1151002']);
+  assert.equal(r.added.length, 0);
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(r.bytes, { type: 'array' }).Sheets['202610'], { header: 1 });
+  assert.equal(sheet.length, 3);
+  assert.equal(sheet[1][7], 'Rash、Itching');
+  assert.deepEqual([sheet[2][0], sheet[2][3], sheet[2][4]], ['1151002', 'PRO23', 'PromERAN 針']);
+});
+
 test('appendRows does not expand a whole-row column width rule', () => {
   const ws = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER]);
   ws['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));

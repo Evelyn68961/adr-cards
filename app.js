@@ -523,6 +523,16 @@
     await w.close();
   }
 
+  // The workbook keeps HIS's own text; a value fixed by hand on the card
+  // replaces it. A changed 識別碼 on the card is written as well.
+  function excelRow(card) {
+    const edited = (shown, raw, clean) => (shown !== clean(raw) ? shown : raw);
+    return Object.assign({}, card, {
+      drugRaw: edited(card.drug, card.drugRaw, P.cleanDrug),
+      symptomRaw: edited(card.symptom, card.symptomRaw, P.cleanSymptom),
+    });
+  }
+
   async function saveToFolder() {
     // One click: link if needed, then re-sync with Excel so the numbers are
     // current (unless the user typed a start number) before writing anything.
@@ -538,38 +548,39 @@
         throw new Error('沒有資料夾寫入權限');
       }
 
-      // 1. Excel: append new rows to the month's sheet.
+      // 1. Excel: append new cases, overwrite the ones already there.
       const fileHandle = await existingFile(folder, WORKBOOK_NAME);
       const original = fileHandle ? new Uint8Array(await (await fileHandle.getFile()).arrayBuffer()) : null;
-      const result = W.appendRows(window.XLSX, P, original, cards);
-      if (result.added.length) {
+      const result = W.appendRows(window.XLSX, P, original, cards.map(excelRow));
+      if (result.added.length || result.updated.length) {
         try {
           await writeFile(folder, WORKBOOK_NAME, result.bytes);
         } catch (e) {
           throw new Error(`無法寫入 ${WORKBOOK_NAME}（若檔案在 Excel 中開著，請先關閉）：${e.name} ${e.message}`);
         }
-        const sheets = [...new Set(result.added.map(a => a.sheet))].join('、');
-        msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：新增 ${result.added.length} 列到工作表 ${sheets}${original ? '' : '（新建檔案）'}` });
+        if (result.added.length) {
+          const sheets = [...new Set(result.added.map(a => a.sheet))].join('、');
+          msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：新增 ${result.added.length} 列到工作表 ${sheets}${original ? '' : '（新建檔案）'}` });
+        }
+        if (result.updated.length) {
+          msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：覆寫 ${result.updated.length} 列：${result.updated.map(u => u.row.id).join('、')}` });
+        }
       }
       if (result.duplicates.length) {
-        msgs.push({ cls: 'ok', text: `${result.duplicates.length} 列已在 Excel 中，未重複新增：${result.duplicates.map(r => r.chartNo).join('、')}` });
+        msgs.push({ cls: 'ok', text: `${result.duplicates.length} 列在 Excel 中內容相同，不需更動：${result.duplicates.map(r => r.id).join('、')}` });
       }
 
-      // 2. PNGs: never overwrite an existing card.
+      // 2. PNGs: always write the card as it is now, replacing an older image.
       const saved = [];
-      const exists = [];
+      const replaced = [];
       for (const card of cards) {
         const dir = await subfolder('ADR_' + card.id.slice(0, 5), true);
         const name = `ADR_${card.id}.png`;
-        if (await existingFile(dir, name)) {
-          if (!card.recorded) exists.push(name);
-          continue;
-        }
+        (await existingFile(dir, name) ? replaced : saved).push(name);
         await writeFile(dir, name, await cardBlob(card));
-        saved.push(name);
       }
       if (saved.length) msgs.push({ cls: 'ok', text: `已儲存 ${saved.length} 張卡片圖檔：${saved.join('、')}` });
-      if (exists.length) msgs.push({ cls: 'warn', text: `已存在、未覆寫（請確認起始流水號）：${exists.join('、')}` });
+      if (replaced.length) msgs.push({ cls: 'ok', text: `已覆寫 ${replaced.length} 張卡片圖檔：${replaced.join('、')}` });
     } catch (e) {
       msgs.push({ cls: 'warn', text: e.message });
     } finally {
