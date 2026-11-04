@@ -98,6 +98,51 @@ test('a 識別碼 carried by two cases is renumbered on the next plain save', ()
   assert.deepEqual(sheet11(r.bytes), [['1151101', '000000001Z'], ['1151102', '000000002Z']]);
 });
 
+test('setWriters adds a 撰寫人 column that survives later saves', () => {
+  const cards = P.assignIds(P.parseText([row(1, '2026/10/17 10:52:08'), row(2, '2026/10/20 14:26:51')].join('\n')).rows, 1);
+  const { bytes } = W.appendRows(XLSX, P, null, cards);
+  const set = W.setWriters(XLSX, bytes, new Map([['1151002', '王藥師'], ['1159999', 'X']]));
+  assert.deepEqual(set.changed, ['1151002']);
+  assert.deepEqual(set.missing, ['1159999']);
+  const ledger = W.readLedger(XLSX, P, set.bytes);
+  assert.deepEqual(ledger.months['202610'].rows.map(r => r.writer), ['', '王藥師']);
+
+  // Overwriting the case with a hand fix keeps its 撰寫人.
+  const fixed = Object.assign({}, cards[1], { symptomRaw: 'Rash、Itching' });
+  const after = W.appendRows(XLSX, P, set.bytes, [fixed]);
+  assert.equal(after.updated.length, 1);
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(after.bytes, { type: 'array' }).Sheets['202610'], { header: 1 });
+  assert.equal(sheet[0][9], '撰寫人');
+  assert.deepEqual([sheet[2][7], sheet[2][9]], ['Rash、Itching', '王藥師']);
+
+  // Clearing removes the name; an unchanged name writes nothing.
+  assert.equal(W.setWriters(XLSX, after.bytes, new Map([['1151002', '王藥師']])).changed.length, 0);
+  const cleared = W.setWriters(XLSX, after.bytes, new Map([['1151002', '']]));
+  assert.deepEqual(W.readLedger(XLSX, P, cleared.bytes).months['202610'].rows.map(r => r.writer), ['', '']);
+});
+
+test('setWriters on a sheet without a header row labels the empty row above', () => {
+  const cards = P.assignIds(P.parseText(row(1, '2026/10/05 09:57:01')).rows, 1);
+  const ws = XLSX.utils.aoa_to_sheet([P.sheetRow(cards[0])], { origin: 'A2', cellDates: true });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '202610');
+  const bytes = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  const out = W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師']])).bytes;
+  const sheet = XLSX.read(out, { type: 'array' }).Sheets['202610'];
+  assert.deepEqual([sheet.J1.v, sheet.A2.v, sheet.J2.v], ['撰寫人', '1151001', '王藥師']);
+  assert.equal(sheet.A1, undefined);
+  assert.equal(W.readLedger(XLSX, P, out).months['202610'].rows[0].writer, '王藥師');
+});
+
+test('a case that takes over a 識別碼 does not inherit its 撰寫人', () => {
+  const [a] = P.assignIds(P.parseText(row(1, '2026/11/02 11:50:00')).rows, 1);
+  const named = W.setWriters(XLSX, W.appendRows(XLSX, P, null, [a]).bytes, new Map([['1151101', '王藥師']])).bytes;
+  const [b] = P.assignIds(P.parseText(row(2, '2026/11/03 14:57:00')).rows, 1);
+  const r = W.appendRows(XLSX, P, named, [b]);
+  const rows = W.readLedger(XLSX, P, r.bytes).months['202611'].rows;
+  assert.deepEqual(rows.map(x => [x.chartNo, x.writer]), [['000000002Z', '']]);
+});
+
 test('appendRows does not expand a whole-row column width rule', () => {
   const ws = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER]);
   ws['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));

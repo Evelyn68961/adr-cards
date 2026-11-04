@@ -41,7 +41,12 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 - Rows go to the sheet for their month (`202610`, `202611`, …), created if missing.
 - A case already in the sheet (same 病歷號 + 藥碼 + 得知日期) is never added twice: saving again **overwrites** that row with the card's current values (hand fixes to
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
-- Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期.
+- Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人**.
+- **撰寫人** (who writes up the case) is typed in the 本月案例清單 table (names used before are
+  suggested) and saved to column J automatically; clearing the box clears it. Saves only rewrite
+  columns A–I, so a case keeps its 撰寫人 when overwritten, except when a different case takes
+  over its 識別碼. If the workbook is open in Excel, the name is kept on the page and saved when
+  you come back to it after closing Excel.
 - With the desktop shortcut, the previous workbook is copied to `backups\` in this folder
   (latest 30) before each write; nothing extra is put in the ADR folder.
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.

@@ -53,6 +53,12 @@
     return String(a == null ? '' : a).trim() === String(b == null ? '' : b).trim();
   }
 
+  // Who writes up each case is kept in column J (撰寫人), after the HIS columns.
+  // Rows are rewritten only up to column I, so the column survives saves.
+  const WRITER = '撰寫人';
+  const WRITER_COL = 9;
+  const writerAt = r => String(r[WRITER_COL] == null ? '' : r[WRITER_COL]).trim();
+
   // What the workbook holds: { months: { '202610': { key: '11510', rows, maxSeq } },
   // ids: Map(rowKey -> 識別碼), owners: Map(識別碼 -> its row) }. maxSeq is the
   // highest number in use, counting rows without a 識別碼 so a blank one can
@@ -73,7 +79,7 @@
         if (!/^\d{9}[A-Z]$/.test(chartNo)) return;
         const id = String(r[0]).trim();
         const date = r[8] instanceof Date ? roundSeconds(r[8]) : P.parseDate(r[8]);
-        const row = { id, chartNo, name: String(r[2]).trim(), drug: P.cleanDrug(r[4]), symptom: P.cleanSymptom(r[7]), date };
+        const row = { id, chartNo, name: String(r[2]).trim(), drug: P.cleanDrug(r[4]), symptom: P.cleanSymptom(r[7]), date, writer: writerAt(r) };
         rows.push(row);
         if (!id) { blank++; return; }
         if (owners.has(id)) return;
@@ -132,6 +138,8 @@
         const holders = r.recorded || !r.id ? [] : (byId.get(r.id) || []);
         const at = byKey.has(key) ? byKey.get(key) : holders[0];
         holders.forEach(i => { if (i !== at) drop.add(i); });
+        // A row taken over from another case does not keep that case's 撰寫人.
+        if (!byKey.has(key) && at !== undefined) delete ws[XLSX.utils.encode_cell({ r: at + base, c: WRITER_COL })];
         const values = P.sheetRow(r);
         if (at === undefined) {
           XLSX.utils.sheet_add_aoa(ws, [values], Object.assign({ origin: -1 }, opts));
@@ -172,7 +180,50 @@
     return { bytes: out, added, updated, duplicates, removed };
   }
 
-  const api = { appendRows, readLedger };
+  // Sets 撰寫人 for cases by 識別碼: writers is a Map(識別碼 -> name, '' clears).
+  // Labels column J in the header row (the 識別碼 row, or an empty row above
+  // the data) when it is not labelled yet.
+  // Returns { bytes, changed: [識別碼], missing: [識別碼] }.
+  function setWriters(XLSX, bytes, writers) {
+    const wb = load(XLSX, bytes);
+    const changed = [];
+    const left = new Map(writers);
+    wb.SheetNames.filter(name => /^\d{6}$/.test(name)).forEach(name => {
+      const ws = wb.Sheets[name];
+      if (!ws['!ref']) return;
+      const base = XLSX.utils.decode_range(ws['!ref']).s.r;
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '', blankrows: true });
+      let touched = false;
+      aoa.forEach((r, i) => {
+        const id = String(r[0]).trim();
+        if (!left.has(id)) return;
+        const value = String(left.get(id)).trim();
+        left.delete(id);
+        if (writerAt(r) === value) return;
+        const addr = XLSX.utils.encode_cell({ r: base + i, c: WRITER_COL });
+        if (value) XLSX.utils.sheet_add_aoa(ws, [[value]], { origin: addr });
+        else delete ws[addr];
+        changed.push(id);
+        touched = true;
+      });
+      if (!touched) return;
+      const head = aoa.findIndex(r => String(r[0]).trim() === '識別碼');
+      const firstData = aoa.findIndex(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()));
+      const emptyAbove = firstData === 0 || (firstData > 0 && aoa[firstData - 1].every(v => v === ''));
+      const headRow = head >= 0 ? base + head : emptyAbove ? base + firstData - 1 : -1;
+      const headAddr = XLSX.utils.encode_cell({ r: headRow, c: WRITER_COL });
+      if (headRow >= 0 && !ws[headAddr]) {
+        XLSX.utils.sheet_add_aoa(ws, [[WRITER]], { origin: headAddr });
+        if (ws['!cols'] && !ws['!cols'][WRITER_COL]) ws['!cols'][WRITER_COL] = { wch: 10 };
+      }
+    });
+    const out = changed.length
+      ? new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }))
+      : bytes;
+    return { bytes: out, changed, missing: [...left.keys()] };
+  }
+
+  const api = { appendRows, readLedger, setWriters };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRWorkbook = api;
 })(typeof window !== 'undefined' ? window : globalThis);

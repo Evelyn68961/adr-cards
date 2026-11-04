@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ADR 通報卡</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="style.css?v=20261103">
+  <link rel="stylesheet" href="style.css?v=20261104">
 </head>
 <body>
   <header class="no-print">
@@ -38,10 +38,12 @@
         <summary>本月案例清單</summary>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>識別碼</th><th>病歷號</th><th>藥品</th><th>症狀</th><th>得知日期</th><th>卡片</th></tr></thead>
+            <thead><tr><th>識別碼</th><th>病歷號</th><th>藥品</th><th>症狀</th><th>得知日期</th><th>卡片</th><th>撰寫人</th></tr></thead>
             <tbody id="statusRows"></tbody>
           </table>
+          <datalist id="writerNames"></datalist>
         </div>
+        <p id="writerStatus" class="hint writer-status"></p>
         <p id="statusEmpty" class="hint" hidden>這個月還沒有案例。</p>
       </details>
     </section>

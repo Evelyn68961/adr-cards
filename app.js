@@ -509,6 +509,16 @@
     $('statNext').textContent = shownMonth + String(nextSeq(shownMonth)).padStart(2, '0');
     $('statNoCard').textContent = `${noCard.length} 件`;
 
+    const names = [...new Set(Object.values(ledger.months).flatMap(m => m.rows.map(r => r.writer)).filter(Boolean))].sort();
+    $('writerNames').replaceChildren(...names.map(n => Object.assign(document.createElement('option'), { value: n })));
+    const unassigned = rows.filter(r => r.id && !writerOf(r)).length;
+    if (!writerSaving && !pendingWriters.size) {
+      $('writerStatus').textContent = rows.length ? (unassigned ? `尚未指定撰寫人：${unassigned} 件` : '每個案例都已指定撰寫人') : '';
+    }
+    $('statusEmpty').hidden = rows.length > 0;
+    // Don't redraw the rows under someone typing a name.
+    if ($('statusRows').contains(document.activeElement)) return;
+
     $('statusRows').replaceChildren(...rows.map(r => {
       const tr = document.createElement('tr');
       [r.id || '—', r.chartNo, r.drug, r.symptom, r.date ? P.formatDate(r.date) : '—'].forEach(text => {
@@ -521,9 +531,66 @@
       td.textContent = done ? '已製卡' : '未製卡';
       td.className = done ? 'card-done' : 'card-missing';
       tr.appendChild(td);
+      tr.appendChild(writerCell(r));
       return tr;
     }));
-    $('statusEmpty').hidden = rows.length > 0;
+  }
+
+  // ---- 撰寫人 (who writes up each case) ----------------------------------------
+
+  const pendingWriters = new Map();   // 識別碼 -> name not yet in Excel
+  let writerTimer = null;
+  let writerSaving = false;
+
+  const writerOf = r => (pendingWriters.has(r.id) ? pendingWriters.get(r.id) : r.writer);
+
+  function writerCell(r) {
+    const td = document.createElement('td');
+    if (!r.id) return td;
+    const input = document.createElement('input');
+    input.className = 'writer';
+    input.setAttribute('list', 'writerNames');
+    input.setAttribute('aria-label', `${r.id} 撰寫人`);
+    input.placeholder = '未指定';
+    input.value = writerOf(r);
+    input.addEventListener('change', () => {
+      pendingWriters.set(r.id, input.value.trim());
+      clearTimeout(writerTimer);
+      writerTimer = setTimeout(saveWriters, 800);
+      $('writerStatus').textContent = '儲存中…';
+    });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+    td.appendChild(input);
+    return td;
+  }
+
+  // Writes the queued names into ADR通報.xlsx in one go.
+  async function saveWriters() {
+    if (!pendingWriters.size) return;
+    if (saving || writerSaving) { writerTimer = setTimeout(saveWriters, 800); return; }
+    writerSaving = true;
+    const batch = new Map(pendingWriters);
+    try {
+      const handle = await existingFile(folder, WORKBOOK_NAME);
+      if (!handle) throw new Error(`找不到 ${WORKBOOK_NAME}`);
+      const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+      const result = W.setWriters(window.XLSX, bytes, batch);
+      if (result.changed.length) await writeFile(folder, WORKBOOK_NAME, result.bytes);
+      batch.forEach((name, id) => { if (pendingWriters.get(id) === name) pendingWriters.delete(id); });
+      $('writerStatus').textContent = result.missing.length
+        ? `Excel 中找不到 ${result.missing.join('、')}，撰寫人未儲存。`
+        : `撰寫人已存入 ${WORKBOOK_NAME}（${[...batch].map(([id, n]) => `${id}：${n || '清除'}`).join('、')}）`;
+      result.missing.forEach(id => pendingWriters.delete(id));
+    } catch (e) {
+      $('writerStatus').textContent = `撰寫人無法存入 ${WORKBOOK_NAME}（若檔案在 Excel 中開著，請先關閉）：${e.message}。回到此頁時會自動再試。`;
+    } finally {
+      writerSaving = false;
+    }
+    if (!pendingWriters.size) {
+      const message = $('writerStatus').textContent;
+      await refreshLedger();
+      $('writerStatus').textContent = message;
+    }
   }
 
   async function writeFile(dir, name, data) {
@@ -624,7 +691,7 @@
     shownMonth = e.target.value;
     renderStatus();
   });
-  window.addEventListener('focus', refreshLedger);
+  window.addEventListener('focus', () => (pendingWriters.size ? saveWriters() : refreshLedger()));
   $('linkBtn').addEventListener('click', linkFolder);
   $('saveBtn').addEventListener('click', saveToFolder);
   $('pdfBtn').addEventListener('click', makePdf);
