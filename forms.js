@@ -268,6 +268,16 @@
     return parts.join('\n');
   }
 
+  // TFDA has no 處置 field, so the form's 處置 is appended to the description
+  // (unless the description already contains it).
+  function descriptionText(c) {
+    const description = String(c.description || '').trim();
+    const treatment = String(c.treatment || '').trim();
+    const squash = s => s.replace(/\s+/g, '');
+    if (isNone(treatment) || squash(description).includes(squash(treatment))) return description;
+    return `${description}\n處置：${treatment}`;
+  }
+
   const attachmentName = c => `ADR_${c.id}_檢驗資料.pdf`;
   // 檢查描述 alone fits in 檢驗說明, so only lab data needs an attachment.
   const hasLabs = c => !isNone(c.labs);
@@ -309,8 +319,7 @@
             ? [{ label: '死亡日期 / 死亡原因', text: '', hint: '內部表單沒有此欄，請自行填寫' }] : []),
           { label: '是否同意提供通報者姓名等資料給藥商', options: ['是', '否'], pick: '', hint: '內部表單沒有此欄，請自行選擇' },
           { label: '不良反應症狀（逐一新增）', list: splitSymptoms(c.symptoms) },
-          { label: '不良反應描述', text: c.description, long: true },
-          ...(isNone(c.treatment) ? [] : [{ label: '處置（TFDA 無此欄，可併入描述）', text: c.treatment, long: true }]),
+          { label: '不良反應描述', text: descriptionText(c), long: true },
           { label: '不良反應後續結果', options: OUTCOMES, pick: pickOutcome(c.outcome), raw: c.outcome },
         ] },
         { tab: 'Reaction Information(2)', fields: [

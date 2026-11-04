@@ -123,3 +123,15 @@ test('builds TFDA sections and points lab results at the attachment', () => {
   assert.ok(F.hasLabs(c));
   assert.equal(F.attachmentContent(c).blocks[0].text, '1. 2026/9/24。AST 895 U/L');
 });
+
+test('處置 is appended to 不良反應描述, since TFDA has no field for it', () => {
+  const description = c => Object.fromEntries(F.tfdaSections(c).sections.flatMap(s => s.fields).map(f => [f.label, f]))['不良反應描述'].text;
+  const base = F.readCases([HEADER_A, rowA])[0];
+  const withTreatment = Object.assign({}, base, { treatment: '停用假藥，給予 Diphenhydramine。' });
+  assert.equal(description(withTreatment), '病人為七十歲男性，服藥後第三天出現全身紅疹與搔癢。\n處置：停用假藥，給予 Diphenhydramine。');
+  assert.equal(description(Object.assign({}, base, { treatment: '無' })), base.description);
+  // Already in the description: not added twice.
+  const inside = Object.assign({}, withTreatment, { description: base.description + '停用假藥， 給予 Diphenhydramine。' });
+  assert.equal(description(inside), inside.description);
+  assert.ok(!F.tfdaSections(withTreatment).sections.flatMap(s => s.fields).some(f => f.label.startsWith('處置')));
+});
