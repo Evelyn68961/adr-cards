@@ -70,7 +70,10 @@ The HIS ADR export (17 columns, tab-separated):
   Rows copied back out of the monthly sheet (8 columns) also work.
 - HIS puts line breaks inside cells (e.g. 記錄來源), so a record can span several lines; a new
   record starts only at a line beginning with a 病歷號.
-- **得知日期** = 最後異動時間 (HIS leaves 登記日 empty), falling back to 登記日.
+- **得知日期** = 登記日 when HIS filled it in, otherwise 最後異動時間 (登記日 is often empty).
+- HIS lists one row per suspected drug. Rows with the same 病歷號, 得知日期 and 症狀 are one case:
+  paste them all and they become one card, one 識別碼 and one Excel row, with the 藥碼 and 藥名 joined
+  by `、` (e.g. `ISO06、RIF04、PYR03`). Pasting the case again in any order is recognised.
 
 ## Card rules
 

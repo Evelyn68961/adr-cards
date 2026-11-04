@@ -6,7 +6,7 @@
   // Column layouts. With a header row, columns are found by name (aliases
   // cover the HIS export and the monthly Excel sheet); without one, the
   // layout is picked by column count. `date` lists candidates in priority
-  // order: HIS leaves 登記日 empty, and the sheet's 得知日期 is 最後異動時間.
+  // order: 登記日 when HIS filled it in (often empty), else 最後異動時間.
   const HEADER_ALIASES = {
     chartNo: ['病歷號'],
     name: ['姓名'],
@@ -15,12 +15,12 @@
     severity: ['嚴重程度', '嚴重度'],
     source: ['記錄來源', '通報來源', '通報人員'],
     symptom: ['症狀'],
-    date: ['得知日期', '最後異動時間', '登記日'],
+    date: ['得知日期', '登記日', '最後異動時間'],
   };
   const LAYOUTS = {
     // HIS export: 病歷號 姓名 藥碼 MDPNAME ATC 藥理分類 藥理分類名稱 嚴重程度 記錄來源
     //             是否過敏 登記日 症狀 疫苗接種日期 疫苗接種院所 最後異動者員編 最後異動者 最後異動時間
-    17: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 7, source: 8, symptom: 11, date: [16, 10] },
+    17: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 7, source: 8, symptom: 11, date: [10, 16] },
     // Monthly Excel sheet: 識別碼 病歷號 姓名 藥碼 藥名 嚴重度 通報來源 症狀 得知日期
     9: { chartNo: 1, name: 2, drugCode: 3, drug: 4, severity: 5, source: 6, symptom: 7, date: [8] },
     // Same without 識別碼 (sheet rows from before the column was added)
@@ -160,7 +160,32 @@
         symptom: cleanSymptom(get('symptom')),
       });
     });
-    return { rows, skipped };
+    return { rows: groupCases(rows), skipped };
+  }
+
+  // HIS lists one row per suspected drug. Rows for the same patient, 得知日期
+  // and 症狀 are one case: one card, one 識別碼 and one Excel row, with the
+  // drugs joined by DRUG_SEP in paste order.
+  const DRUG_SEP = '、';
+  function groupCases(rows) {
+    const cases = new Map();
+    rows.forEach(r => {
+      const key = [r.chartNo, formatDateTime(r.date), r.symptom].join('|');
+      const c = cases.get(key);
+      if (!c) { cases.set(key, Object.assign({}, r)); return; }
+      if (splitCodes(c.drugCode).includes(String(r.drugCode).trim().toUpperCase())) return;
+      const join = (a, b) => [a, b].filter(Boolean).join(DRUG_SEP);
+      c.drugCode = join(c.drugCode, r.drugCode);
+      c.drugRaw = join(c.drugRaw, r.drugRaw);
+      c.drug = join(c.drug, r.drug);
+      if (r.severity && !c.severity.split(DRUG_SEP).includes(r.severity)) c.severity = join(c.severity, r.severity);
+    });
+    return [...cases.values()];
+  }
+
+  // "ISO06、RIF04" -> ['ISO06', 'RIF04']
+  function splitCodes(code) {
+    return String(code || '').split(/\s*[、,，;；/]\s*/).map(s => s.trim().toUpperCase()).filter(Boolean);
   }
 
   // Sorts by 得知日期 (date + time) and assigns 識別碼. Cases the workbook already
@@ -193,9 +218,9 @@
   }
 
   // Identifies a report across the paste and the workbook, to avoid
-  // appending the same row twice.
+  // appending the same row twice. A case's drug codes count in any order.
   function rowKey(chartNo, drugCode, date) {
-    return [String(chartNo).trim().toUpperCase(), String(drugCode).trim().toUpperCase(),
+    return [String(chartNo).trim().toUpperCase(), splitCodes(drugCode).sort().join(DRUG_SEP),
       date instanceof Date ? formatDateTime(date) : ''].join('|');
   }
 
@@ -208,7 +233,7 @@
 
   const api = {
     parseDate, cleanDrug, cleanSymptom, formatDate, formatDateTime, monthKey, sheetName,
-    parseText, assignIds, SHEET_HEADER, sheetRow, rowKey, toTsv,
+    parseText, assignIds, SHEET_HEADER, sheetRow, rowKey, toTsv, splitCodes,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRParse = api;

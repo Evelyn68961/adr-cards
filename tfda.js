@@ -116,24 +116,27 @@
   const hospitalDetail = code => hospital('P4', code).then(html => H().parseDetail(html));
 
   // Hospital products for one drug on the form: those found by name, plus the
-  // 藥碼 HIS recorded for this case (suspect drugs only).
-  async function hospitalProducts(query, extraCode) {
+  // 藥碼 HIS recorded for this case (suspect drugs only) when it is a single
+  // one; with several, only the one found by name is tagged.
+  async function hospitalProducts(query, hisCodes) {
     const found = query ? H().parseSearch(await hospital('P3', query)).slice(0, 8) : [];
+    const extraCode = hisCodes.length === 1 ? hisCodes[0] : null;
     if (extraCode && !found.some(p => p.code === extraCode)) found.unshift({ code: extraCode });
     const details = await Promise.all(found.map(p => hospitalDetail(p.code).catch(() => null)));
     return details.filter(Boolean).map(d => Object.assign(d,
       licenseIndex ? { tfda: window.ADRLicenses.licenseFromNhiCode(licenseIndex, d.nhi, d.zh) } : {}));
   }
 
-  function hospitalBlock(f, hisCode) {
+  function hospitalBlock(f, hisCodes) {
     const box = el('div', { class: 'tf-hospital' }, el('div', { class: 'tf-hint' }, '查詢院內藥品資料庫…'));
     const formZh = window.ADRLicenses.normZh(f.hospital.zh);
-    hospitalProducts(f.hospital.query, hisCode).then(products => {
+    const isHis = p => hisCodes.includes(p.code);
+    hospitalProducts(f.hospital.query, hisCodes).then(products => {
       if (!products.length) throw new Error('院內藥品資料庫沒有符合的品項');
-      products.sort((a, b) => (b.code === hisCode) - (a.code === hisCode));
+      products.sort((a, b) => isHis(b) - isHis(a));
       box.replaceChildren(...products.map(p => {
         const tags = [];
-        if (p.code === hisCode) tags.push('HIS 通報紀錄的藥碼');
+        if (isHis(p)) tags.push('HIS 通報紀錄的藥碼');
         const zh = window.ADRLicenses.normZh(p.zh);
         if (formZh && zh && (formZh.includes(zh) || zh.includes(formZh))) tags.push('與表單中文品名相同');
         const lic = p.tfda;
@@ -255,11 +258,11 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 1200);
   }
 
-  function field(f, hisCode) {
+  function field(f, hisCodes) {
     const row = el('div', { class: 'tf-field' + (f.long ? ' wide' : '') + (f.hospital ? ' wide' : '') },
       el('div', { class: 'tf-label' }, f.label));
     if (f.hospital && folder) {
-      row.append(hospitalBlock(f, hisCode));
+      row.append(hospitalBlock(f, hisCodes));
       return row;
     }
     if (f.attachment) {
@@ -284,11 +287,11 @@
 
   function drugBlock(group) {
     if (!group.list.length) return null;
-    const hisCode = group.kind === '可疑藥品' ? reported.get(current.id) : null;
+    const hisCodes = group.kind === '可疑藥品' ? window.ADRParse.splitCodes(reported.get(current.id)) : [];
     return el('div', { class: 'tf-drugs' }, ...group.list.map(d =>
       el('div', { class: 'tf-drug' },
         el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`, el('span', { class: 'hint' }, `　按「新增${group.kind}」後依序填入`)),
-        ...d.fields.map(f => field(f, hisCode)))));
+        ...d.fields.map(f => field(f, hisCodes)))));
   }
 
   function select(c) {

@@ -105,6 +105,33 @@ test('HIS export without header is detected by shape', () => {
   assert.deepEqual(cards.map(c => c.id), ['1151004', '1151005']);
 });
 
+// One reaction with three suspected drugs: HIS gives one row per drug, with
+// 登記日 filled in and 最後異動時間 in the next month.
+const TB = (code, drug) => `000000009J\t林小芳\t${code}\t${drug}\tJ04AC01\t081604\tAntituberculosis Agents\t2_中等\t病人/家屬自述\t0_藥物不良反應\t2026/10/26\tDrug-induced liver injury\t\t\tC00000\t張藥師\t2026/11/03 10:28:17`;
+const TB_ROWS = [TB('ISO06', 'Isoniazide 錠劑 100 mg'), TB('RIF04', '糖包 Rifampicin 膠囊 300 mg'), TB('PYR03', 'Pyrazinamide 錠劑 500 mg')];
+
+test('rows for one reaction become one case dated by 登記日', () => {
+  const { rows } = P.parseText([HIS_HEADER, ...TB_ROWS, HIS_ROW].join('\n'));
+  assert.equal(rows.length, 2);
+  const tb = rows[0];
+  assert.equal(tb.drugCode, 'ISO06、RIF04、PYR03');
+  assert.equal(tb.drug, 'Isoniazide 錠劑 100 mg、糖包 Rifampicin 膠囊 300 mg、Pyrazinamide 錠劑 500 mg');
+  assert.equal(tb.severity, '2_中等');
+  assert.equal(P.formatDate(tb.date), '2026/10/26');
+  assert.equal(P.assignIds(rows, 13)[0].id, '1151013');
+  // Without a header, by shape, and in another order: the same case.
+  const again = P.parseText([TB_ROWS[2], TB_ROWS[0], TB_ROWS[1]].join('\n')).rows;
+  assert.equal(again.length, 1);
+  assert.equal(P.rowKey(again[0].chartNo, again[0].drugCode, again[0].date), P.rowKey(tb.chartNo, tb.drugCode, tb.date));
+  // Pasting the same row twice does not list the drug twice.
+  assert.equal(P.parseText([TB_ROWS[0], TB_ROWS[0]].join('\n')).rows[0].drugCode, 'ISO06');
+});
+
+test('same patient and time but another 症狀 stays a separate case', () => {
+  const other = TB_ROWS[1].replace('Drug-induced liver injury', 'Rash');
+  assert.equal(P.parseText([TB_ROWS[0], other].join('\n')).rows.length, 2);
+});
+
 test('sheetRow and rowKey match the monthly sheet', () => {
   const r = P.parseText(HIS_ROW).rows[0];
   const row = P.sheetRow(r);
