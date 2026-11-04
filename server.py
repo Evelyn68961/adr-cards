@@ -2,12 +2,13 @@
 
 Serves the tool at http://127.0.0.1:8770/ and gives it direct read/write access
 to the ADR folder named in adr-folder.txt, so the page never asks for a folder.
-Started by the desktop shortcut (pythonw, no console window). If it is already
-running, it just opens the browser.
+Started by the desktop shortcut (pythonw, no console window), and quietly at
+Windows sign-in. If it is already running, it just opens the app window.
 """
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import urllib.error
@@ -164,18 +165,38 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = False
 
 
+# Browsers that can show the tool in its own app window (--app), first found wins.
+APP_BROWSERS = [
+    os.path.join(os.environ.get(root, ''), *path)
+    for root in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA')
+    for path in (('Google', 'Chrome', 'Application', 'chrome.exe'),
+                 ('Microsoft', 'Edge', 'Application', 'msedge.exe'))
+]
+
+
+def open_app():
+    """Shows the tool in its own window (no tabs or address bar), or in a
+    normal browser tab when neither Chrome nor Edge is installed."""
+    for exe in APP_BROWSERS:
+        if os.path.isfile(exe):
+            subprocess.Popen([exe, f'--app={URL}'])
+            return
+    webbrowser.open(URL)
+
+
 def main(open_browser=True):
     try:
         server = Server((HOST, PORT), Handler)
     except OSError:
         # Already running: just show it.
         if open_browser:
-            webbrowser.open(URL)
+            open_app()
         return
     if open_browser:
-        webbrowser.open(URL)
+        open_app()
     server.serve_forever()
 
 
 if __name__ == '__main__':
+    # --no-browser: start quietly (used by the Windows startup shortcut).
     main(open_browser='--no-browser' not in sys.argv)

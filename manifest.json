@@ -1,0 +1,21 @@
+{
+  "name": "ADR 通報卡",
+  "short_name": "ADR 通報",
+  "description": "ADR 通報卡製作、卡片列印與 TFDA 通報小幫手",
+  "lang": "zh-Hant",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#2f6f73",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "ADR 通報卡製作", "url": "index.html", "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "卡片列印", "url": "print.html", "icons": [{ "src": "favicon-print.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "TFDA 通報小幫手", "url": "tfda.html", "icons": [{ "src": "favicon-tfda.svg", "sizes": "any", "type": "image/svg+xml" }] }
+  ]
+}

@@ -12,9 +12,16 @@ folder built in, so nothing ever has to be linked or allowed.
 
 - `adr-folder.txt` (one line, not committed) holds the ADR folder path, e.g.
   `G:\我的雲端硬碟\#FJUH.Pharm\^藥品資訊\ADR`.
-- Desktop shortcut **ADR 通報卡**: target `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py"`,
-  start in `D:\Git\adr-cards`. It starts the helper (no console window) and opens the page;
-  if the helper is already running it just opens the page.
+- Desktop and Start-menu shortcut **ADR 通報卡** (icon `icons\adr.ico`): target
+  `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py"`, start in `D:\Git\adr-cards`. It starts the
+  helper (no console window) and opens the tool in its own app window (Chrome or Edge `--app`,
+  no tabs or address bar); if the helper is already running it just opens the window.
+- The pages are an installable app (`manifest.json`): Chrome's install icon in the address bar
+  adds it to the Start menu and taskbar, with 卡片列印 and TFDA 通報小幫手 on its right-click
+  menu. The installed app still needs the helper running.
+- Optional: to have the helper always running, put a shortcut to
+  `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py" --no-browser` in the Windows Startup folder
+  (`shell:startup`).
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
 
