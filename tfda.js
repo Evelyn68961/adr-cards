@@ -6,7 +6,8 @@
 
   const F = window.ADRForms;
   const $ = id => document.getElementById(id);
-  const FORM_FILE = /通報表.*\.xlsx?$/i;
+  // Not Excel's ~$ lock files, which exist while a form is open.
+  const FORM_FILE = /^(?!~\$).*通報表.*\.xlsx?$/i;
   const DONE_KEY = 'adr-tfda-done';
 
   let folder = null;      // ADR folder (desktop helper only)
@@ -116,29 +117,34 @@
   const hospitalDetail = code => hospital('P4', code).then(html => H().parseDetail(html));
 
   // Hospital products for one drug on the form: those found by name, plus the
-  // 藥碼 HIS recorded for this case (suspect drugs only) when it is a single
-  // one; with several, only the one found by name is tagged.
-  async function hospitalProducts(query, hisCodes) {
+  // 藥碼 HIS recorded for this case when the case has a single suspect drug and
+  // a single code. Otherwise a HIS code is only tagged where the name search
+  // finds it, so it never lands under another drug.
+  async function hospitalProducts(query, hisCodes, single) {
     const found = query ? H().parseSearch(await hospital('P3', query)).slice(0, 8) : [];
-    const extraCode = hisCodes.length === 1 ? hisCodes[0] : null;
+    const extraCode = single && hisCodes.length === 1 ? hisCodes[0] : null;
     if (extraCode && !found.some(p => p.code === extraCode)) found.unshift({ code: extraCode });
     const details = await Promise.all(found.map(p => hospitalDetail(p.code).catch(() => null)));
     return details.filter(Boolean).map(d => Object.assign(d,
       licenseIndex ? { tfda: window.ADRLicenses.licenseFromNhiCode(licenseIndex, d.nhi, d.zh) } : {}));
   }
 
-  function hospitalBlock(f, hisCodes) {
+  function hospitalBlock(f, his) {
     const box = el('div', { class: 'tf-hospital' }, el('div', { class: 'tf-hint' }, '查詢院內藥品資料庫…'));
     const formZh = window.ADRLicenses.normZh(f.hospital.zh);
-    const isHis = p => hisCodes.includes(p.code);
-    hospitalProducts(f.hospital.query, hisCodes).then(products => {
+    const isHis = p => his.codes.includes(p.code);
+    const sameZh = p => {
+      const zh = window.ADRLicenses.normZh(p.zh);
+      return !!(formZh && zh && (formZh.includes(zh) || zh.includes(formZh)));
+    };
+    const rank = p => 2 * isHis(p) + sameZh(p);
+    hospitalProducts(f.hospital.query, his.codes, his.single).then(products => {
       if (!products.length) throw new Error('院內藥品資料庫沒有符合的品項');
-      products.sort((a, b) => isHis(b) - isHis(a));
+      products.sort((a, b) => rank(b) - rank(a));
       box.replaceChildren(...products.map(p => {
         const tags = [];
         if (isHis(p)) tags.push('HIS 通報紀錄的藥碼');
-        const zh = window.ADRLicenses.normZh(p.zh);
-        if (formZh && zh && (formZh.includes(zh) || zh.includes(formZh))) tags.push('與表單中文品名相同');
+        if (sameZh(p)) tags.push('與表單中文品名相同');
         const lic = p.tfda;
         return el('div', { class: 'tf-candidate' + (tags.length ? ' best' : '') },
           lic ? copyable(lic.license) : el('div', { class: 'tf-hint warn' }, `健保碼 ${p.nhi || '—'} 無法對應許可證`),
@@ -258,11 +264,11 @@
     toastTimer = setTimeout(() => { t.hidden = true; }, 1200);
   }
 
-  function field(f, hisCodes) {
+  function field(f, his = { codes: [], single: false }) {
     const row = el('div', { class: 'tf-field' + (f.long ? ' wide' : '') + (f.hospital ? ' wide' : '') },
       el('div', { class: 'tf-label' }, f.label));
     if (f.hospital && folder) {
-      row.append(hospitalBlock(f, hisCodes));
+      row.append(hospitalBlock(f, his));
       return row;
     }
     if (f.attachment) {
@@ -285,13 +291,21 @@
     return row;
   }
 
-  function drugBlock(group) {
+  function drugBlock(group, i, groups) {
     if (!group.list.length) return null;
-    const hisCodes = group.kind === '可疑藥品' ? window.ADRParse.splitCodes(reported.get(current.id)) : [];
-    return el('div', { class: 'tf-drugs' }, ...group.list.map(d =>
-      el('div', { class: 'tf-drug' },
+    const suspects = group.kind === '可疑藥品' ? [] : (groups.find(g => g.kind === '可疑藥品') || { list: [] }).list;
+    const his = group.kind === '可疑藥品'
+      ? { codes: window.ADRParse.splitCodes(reported.get(current.id)), single: group.list.length === 1 }
+      : { codes: [], single: false };
+    const norm = s => String(s || '').replace(/\s+/g, '').toLowerCase();
+    return el('div', { class: 'tf-drugs' }, ...group.list.map(d => {
+      // Forms sometimes list the suspect drugs again as interacting drugs.
+      const same = suspects.find(s => norm(s.name) === norm(d.name));
+      return el('div', { class: 'tf-drug' },
         el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`, el('span', { class: 'hint' }, `　按「新增${group.kind}」後依序填入`)),
-        ...d.fields.map(f => field(f, hisCodes)))));
+        same ? el('div', { class: 'tf-hint warn' }, `與可疑藥品・${same.title}相同：表單把同一個藥品重複列為${group.kind}，請確認是否真的要在 TFDA 重複新增。`) : null,
+        ...d.fields.map(f => field(f, his)));
+    }));
   }
 
   function select(c) {
