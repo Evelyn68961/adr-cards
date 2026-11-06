@@ -11,3 +11,4 @@ adr-folder.txt
 *.adrtmp
 __pycache__/
 backups/
+update.log

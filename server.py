@@ -4,12 +4,14 @@ Serves the tool at http://127.0.0.1:8770/ and gives it direct read/write access
 to the ADR folder named in adr-folder.txt, so the page never asks for a folder.
 Started by the desktop shortcut (pythonw, no console window), and quietly at
 Windows sign-in. If it is already running, it just opens the app window.
+Each start first updates this folder from GitHub (see update()).
 """
 import json
 import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -29,6 +31,10 @@ BACKUPS_KEPT = 30
 # reachable through this helper.
 HOSPITAL_DRUG_DB = 'http://10.10.4.25:8080/Key_Search/'
 HOSPITAL_PAGES = {'P3', 'P4'}
+# Result of the last self-update, for when an update does not show up.
+UPDATE_LOG = os.path.join(APP_DIR, 'update.log')
+# No console window flashing up for git under pythonw.
+NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
 def backup(path):
@@ -135,6 +141,13 @@ class Handler(SimpleHTTPRequestHandler):
         except (urllib.error.URLError, OSError) as e:
             return self.reply(502, f'院內藥品資料庫連不上：{e}')
 
+    def do_POST(self):
+        # A newer copy of this helper asks the running one to make way.
+        if urllib.parse.urlsplit(self.path).path != '/api/quit' or not self.allowed():
+            return self.reply(403, 'forbidden')
+        self.reply(200)
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
+
     def do_PUT(self):
         url = urllib.parse.urlsplit(self.path)
         if url.path != '/api/file' or not self.allowed():
@@ -184,19 +197,89 @@ def open_app():
     webbrowser.open(URL)
 
 
-def main(open_browser=True):
+def git(*args, timeout=10):
+    env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='never')
+    return subprocess.run(['git', *args], cwd=APP_DIR, capture_output=True, text=True,
+                          timeout=timeout, env=env, creationflags=NO_WINDOW)
+
+
+def log_update(message):
+    try:
+        with open(UPDATE_LOG, 'w', encoding='utf-8') as f:
+            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} {message}\n')
+    except OSError:
+        pass
+
+
+def finish(message, server_changed=False):
+    log_update(message)
+    return server_changed
+
+
+def update():
+    """Brings this folder up to date with main on GitHub (fast-forward only),
+    so changes merged there show up the next time the app is opened.
+    Never stops the app from starting: skipped without git, off main, with
+    local edits, or offline. Returns True when server.py itself changed."""
+    if not os.path.isdir(os.path.join(APP_DIR, '.git')) or not shutil.which('git'):
+        return finish('skipped: not a git checkout, or git is not installed')
+    try:
+        if git('rev-parse', '--abbrev-ref', 'HEAD').stdout.strip() != 'main':
+            return finish('skipped: not on the main branch')
+        if git('status', '--porcelain', '--untracked-files=no').stdout.strip():
+            return finish('skipped: files were changed in this folder')
+        before = git('rev-parse', 'HEAD').stdout.strip()
+        pulled = git('pull', '--ff-only', '--quiet', 'origin', 'main', timeout=20)
+        if pulled.returncode != 0:
+            return finish('failed: ' + (pulled.stderr.strip() or 'git pull failed'))
+        after = git('rev-parse', 'HEAD').stdout.strip()
+        if before == after:
+            return finish(f'up to date ({after[:7]})')
+        changed = git('diff', '--name-only', before, after).stdout.split()
+        return finish(f'updated {before[:7]} -> {after[:7]}: {", ".join(changed)}', 'server.py' in changed)
+    except (OSError, subprocess.SubprocessError) as e:
+        return finish(f'failed: {e}')
+
+
+def replace_running():
+    """Asks an older running copy to stop, so the updated one can serve."""
+    try:
+        req = urllib.request.Request(URL + 'api/quit', method='POST', headers={'X-ADR-Cards': '1'})
+        urllib.request.urlopen(req, timeout=3).close()
+    except (urllib.error.URLError, OSError):
+        return None  # an old copy without /api/quit keeps running
+    for _ in range(20):
+        time.sleep(0.25)
+        try:
+            return Server((HOST, PORT), Handler)
+        except OSError:
+            pass
+    return None
+
+
+def main(open_browser=True, replace=False):
+    if not replace and update():
+        # server.py changed: run the new version (it replaces a running copy).
+        args = [a for a in sys.argv[1:] if a != '--replace'] + ['--replace']
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), *args], cwd=APP_DIR, creationflags=NO_WINDOW)
+        return
     try:
         server = Server((HOST, PORT), Handler)
     except OSError:
-        # Already running: just show it.
-        if open_browser:
-            open_app()
-        return
+        server = replace_running() if replace else None
+        if not server:
+            # Already running: just show it. Pages are read from disk on
+            # every request, so it shows the updated pages too.
+            if open_browser:
+                open_app()
+            return
     if open_browser:
         open_app()
     server.serve_forever()
+    server.server_close()
 
 
 if __name__ == '__main__':
     # --no-browser: start quietly (used by the Windows startup shortcut).
-    main(open_browser='--no-browser' not in sys.argv)
+    # --replace: started by an older copy after an update; take over from it.
+    main(open_browser='--no-browser' not in sys.argv, replace='--replace' in sys.argv)

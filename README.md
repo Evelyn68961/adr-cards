@@ -22,6 +22,11 @@ folder built in, so nothing ever has to be linked or allowed.
 - Optional: to have the helper always running, put a shortcut to
   `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py" --no-browser` in the Windows Startup folder
   (`shell:startup`).
+- **Updates itself:** each time the shortcut is opened, the helper first runs `git pull` to get
+  the latest `main` from GitHub, so merged changes show up straight away. If `server.py` itself
+  changed, the new version takes over from a copy that is already running. The update is
+  skipped (and the app starts as before) when this folder is not on `main`, has local edits,
+  Git is not installed, or there is no internet; `update.log` says what happened last time.
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
 
