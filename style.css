@@ -221,3 +221,55 @@ button:disabled { opacity: .4; cursor: default; }
   .page .card { width: var(--card-w); height: var(--card-h); padding: 8mm 9mm; font-size: 18pt; }
   .page .field { margin-bottom: 2.4mm; }
 }
+
+/* Case overview (overview.html) */
+.print-only { display: none; }
+.ov-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ov-period button { padding: 4px 12px; }
+.stat-notable { background: var(--warn-bg); border-color: #e0b44c; }
+.stat-notable .stat-value { color: var(--warn-text); }
+.stat-serious { background: #fdecea; border-color: #e3a19b; }
+.stat-serious .stat-value { color: #a3261b; }
+.ov-tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 20px; margin-top: 12px; }
+.ov-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.ov-chip { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: .85rem; }
+.ov-chip.many { border-color: var(--accent); color: var(--ok-text); font-weight: 600; }
+.ov-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.ov-table th, .ov-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.ov-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.ov-table td:nth-child(-n+4) { white-space: nowrap; }
+.ov-id { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ov-row { cursor: pointer; }
+.ov-row:hover { background: #f3f7f7; }
+.ov-row.level-high { background: #fdecea; box-shadow: inset 4px 0 #c62828; }
+.ov-row.level-mid { background: var(--warn-bg); box-shadow: inset 4px 0 #e0a100; }
+.ov-row.level-info { box-shadow: inset 4px 0 var(--accent); }
+.ov-row.open td { border-bottom-color: transparent; }
+.ov-table .hint { font-size: inherit; }
+.ov-sub { font-size: .8rem; color: var(--muted); }
+.ov-sub.serious { color: #a3261b; font-weight: 600; }
+.ov-star { padding: 0 6px; border: none; background: transparent; color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.ov-star.on { color: #e0a100; }
+.flag { display: inline-block; margin: 0 4px 3px 0; padding: 0 8px; border-radius: 999px; font-size: .8rem; white-space: nowrap; }
+.flag.high { background: #c62828; color: #fff; }
+.flag.mid { background: #ffe08a; color: #6b4700; }
+.flag.info { background: var(--ok-bg); color: var(--ok-text); }
+.ov-detail td { background: #fafbfc; }
+.ov-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px 20px; }
+.ov-detail-item { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ov-detail-item:first-child { grid-column: 1 / -1; }
+.ov-legend { margin-top: 12px; font-size: .9rem; }
+.ov-legend summary { cursor: pointer; color: var(--muted); }
+.ov-legend li { margin-top: 4px; }
+
+@media print {
+  .overview .print-only { display: block; margin: 0 0 8px; }
+  .overview header, .overview main { max-width: none; padding: 0; }
+  .overview .panel { border: none; padding: 0; }
+  .overview .table-wrap { overflow: visible; }
+  .overview .ov-table { font-size: 9pt; }
+  .overview .ov-row { break-inside: avoid; }
+  .overview .ov-row.level-high, .overview .ov-row.level-mid, .overview .flag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .overview .stat { padding: 4px 8px; }
+  .overview .stat-value { font-size: 1.1rem; }
+}

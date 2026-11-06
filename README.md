@@ -17,7 +17,7 @@ folder built in, so nothing ever has to be linked or allowed.
   helper (no console window) and opens the tool in its own app window (Chrome or Edge `--app`,
   no tabs or address bar); if the helper is already running it just opens the window.
 - The pages are an installable app (`manifest.json`): Chrome's install icon in the address bar
-  adds it to the Start menu and taskbar, with 卡片列印 and TFDA 通報小幫手 on its right-click
+  adds it to the Start menu and taskbar, with 卡片列印, TFDA 通報小幫手 and 案例總覽 on its right-click
   menu. The installed app still needs the helper running.
 - Optional: to have the helper always running, put a shortcut to
   `C:\Windows\pyw.exe "D:\Git\adr-cards\server.py" --no-browser` in the Windows Startup folder
@@ -124,6 +124,28 @@ For entering finished report forms into the TFDA online ADR form.
   `node tools/build-licenses.js 36_3.json` (instructions in the script).
 - **已完成 TFDA 通報** marks a case as done in this browser only.
 
+## Case overview (`overview.html`)
+
+For the routine ADR meeting: every case of a period at a glance, with the ones worth reporting
+highlighted.
+
+- Reads `ADR通報.xlsx` and every `*通報表*.xls(x)` export in the ADR folder and its `ADR_<yyyMM>`
+  folders (or picked files), and joins each case to its report form by 識別碼. A form whose
+  識別碼 is not in the workbook is listed too.
+- Pick a period (從 / 到, or 本月, 近 3 個月, 近 12 個月). The top shows the case count, cases
+  worth noting, serious reactions, cases without a report form, and the most common drugs and
+  symptoms.
+- **值得注意** (worth noting), shown as coloured tags and row highlights:
+  - red: the form's 不良反應嚴重性 is serious (death, life-threatening, disability, birth defect,
+    hospitalisation, other serious), or the outcome is death; without a form, HIS 嚴重度 3_嚴重.
+  - yellow: outcome 有後遺症 or 尚未恢復, a positive rechallenge (有再投予且不良反應再發生), or
+    Naranjo ≥ 9 / Definite.
+  - green: the same 藥碼 in more than one case of the period, the same patient more than once,
+    or marked by hand with ☆ (kept in this browser only).
+- Click a row for the form's 案件描述, 處置, 嚴重性, 結果, Naranjo, sex and age.
+- **複製表格** copies the rows shown (tab-separated, no patient names) for Excel or Word;
+  **列印** prints the summary and table on landscape A4.
+
 ## Privacy
 
 Everything runs in the browser; nothing is uploaded. The only files written are the ones in the
@@ -132,7 +154,8 @@ case data to this repo.
 
 ## Development
 
-No build step. `parse.js` (parsing), `workbook.js` (Excel append), `pdf.js` (PDF writer) are pure
+No build step. `parse.js` (parsing), `workbook.js` (Excel append), `pdf.js` (PDF writer), `forms.js`
+(report forms) and `review.js` (overview flags) are pure
 and tested in Node; `app.js` is the page. `lib/xlsx.full.min.js` is SheetJS CE 0.20.3
 (Apache-2.0, see `lib/xlsx.LICENSE`).
 

@@ -359,7 +359,7 @@
   const api = {
     readCases, mergeCases, isoDate, splitAge, splitSymptoms, parseDrugs, tfdaDrug, pickSource, pickSeriousness,
     pickOutcome, tfdaSections, attachmentContent, attachmentName, hasLabs, monthOf, isNone,
-    SOURCES, SERIOUSNESS, OUTCOMES, AGE_KINDS,
+    SOURCES, SERIOUSNESS, OUTCOMES, AGE_KINDS, RECHALLENGE,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRForms = api;

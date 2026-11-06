@@ -1,7 +1,7 @@
 {
   "name": "ADR 通報卡",
   "short_name": "ADR 通報",
-  "description": "ADR 通報卡製作、卡片列印與 TFDA 通報小幫手",
+  "description": "ADR 通報卡製作、卡片列印、TFDA 通報小幫手與案例總覽",
   "lang": "zh-Hant",
   "start_url": "index.html",
   "scope": "./",
@@ -16,6 +16,7 @@
   "shortcuts": [
     { "name": "ADR 通報卡製作", "url": "index.html", "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }] },
     { "name": "卡片列印", "url": "print.html", "icons": [{ "src": "favicon-print.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "TFDA 通報小幫手", "url": "tfda.html", "icons": [{ "src": "favicon-tfda.svg", "sizes": "any", "type": "image/svg+xml" }] }
+    { "name": "TFDA 通報小幫手", "url": "tfda.html", "icons": [{ "src": "favicon-tfda.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "案例總覽", "url": "overview.html", "icons": [{ "src": "favicon-overview.svg", "sizes": "any", "type": "image/svg+xml" }] }
   ]
 }
