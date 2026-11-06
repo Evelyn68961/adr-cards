@@ -25,8 +25,10 @@ folder built in, so nothing ever has to be linked or allowed.
 - **Updates itself:** each time the shortcut is opened, the helper first runs `git pull` to get
   the latest `main` from GitHub, so merged changes show up straight away. If `server.py` itself
   changed, the new version takes over from a copy that is already running. The update is
-  skipped (and the app starts as before) when this folder is not on `main`, has local edits,
-  Git is not installed, or there is no internet; `update.log` says what happened last time.
+  skipped (and the app starts as before) when this folder has local edits, Git cannot be
+  found, or there is no internet. Git is looked for on the PATH and in the usual Git for Windows,
+  Cmder and GitHub Desktop folders. The page links show the version being served, and the
+  reason in red when the last update was skipped or failed (also in `update.log`).
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
 

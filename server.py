@@ -6,6 +6,7 @@ Started by the desktop shortcut (pythonw, no console window), and quietly at
 Windows sign-in. If it is already running, it just opens the app window.
 Each start first updates this folder from GitHub (see update()).
 """
+import glob
 import json
 import os
 import shutil
@@ -103,6 +104,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if not os.path.isdir(base):
                     return self.reply(404, f'ADR folder not found: {base}')
                 return self.reply(200, json.dumps({'name': os.path.basename(base)}), 'application/json')
+            if url.path == '/api/version':
+                return self.reply(200, json.dumps(version(), ensure_ascii=False), 'application/json')
             if url.path == '/api/hospital':
                 return self.hospital(url.query)
             path = self.target(url.query)
@@ -197,10 +200,36 @@ def open_app():
     webbrowser.open(URL)
 
 
+# Where Git usually is on Windows when it is not on the PATH the shortcut
+# sees (e.g. Git that came with Cmder or GitHub Desktop).
+GIT_CANDIDATES = [
+    os.path.join(os.environ.get(root, ''), *path)
+    for root in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA', 'CMDER_ROOT', 'USERPROFILE')
+    for path in (('Git', 'cmd', 'git.exe'), ('Programs', 'Git', 'cmd', 'git.exe'),
+                 ('vendor', 'git-for-windows', 'cmd', 'git.exe'),
+                 ('cmder', 'vendor', 'git-for-windows', 'cmd', 'git.exe'))
+] + [os.path.join(drive, *path) for drive in ('C:\\', 'D:\\')
+     for path in (('cmder', 'vendor', 'git-for-windows', 'cmd', 'git.exe'),
+                  ('tools', 'cmder', 'vendor', 'git-for-windows', 'cmd', 'git.exe'))]
+
+
+GIT = None  # path to git.exe, found by update()
+
+
+def find_git():
+    found = shutil.which('git')
+    if found:
+        return found
+    desktop = glob.glob(os.path.join(os.environ.get('LOCALAPPDATA', ''), 'GitHubDesktop', 'app-*',
+                                     'resources', 'app', 'git', 'cmd', 'git.exe'))
+    return next((p for p in GIT_CANDIDATES + sorted(desktop, reverse=True) if os.path.isfile(p)), None)
+
+
 def git(*args, timeout=10):
     env = dict(os.environ, GIT_TERMINAL_PROMPT='0', GCM_INTERACTIVE='never')
-    return subprocess.run(['git', *args], cwd=APP_DIR, capture_output=True, text=True,
-                          timeout=timeout, env=env, creationflags=NO_WINDOW)
+    return subprocess.run([GIT or 'git', *args], cwd=APP_DIR, capture_output=True, text=True,
+                          encoding='utf-8', errors='replace', timeout=timeout, env=env, creationflags=NO_WINDOW)
+
 
 
 def log_update(message):
@@ -219,26 +248,55 @@ def finish(message, server_changed=False):
 def update():
     """Brings this folder up to date with main on GitHub (fast-forward only),
     so changes merged there show up the next time the app is opened.
-    Never stops the app from starting: skipped without git, off main, with
-    local edits, or offline. Returns True when server.py itself changed."""
-    if not os.path.isdir(os.path.join(APP_DIR, '.git')) or not shutil.which('git'):
-        return finish('skipped: not a git checkout, or git is not installed')
+    Never stops the app from starting: skipped without git, with local
+    edits, or offline. Returns True when server.py itself changed.
+    The result is in update.log and shown on the pages (/api/version)."""
+    global GIT
+    if not os.path.isdir(os.path.join(APP_DIR, '.git')):
+        return finish('略過更新：這個資料夾不是 git 下載的（沒有 .git）')
+    GIT = find_git()
+    if not GIT:
+        return finish('略過更新：找不到 git（請安裝 Git for Windows）')
     try:
-        if git('rev-parse', '--abbrev-ref', 'HEAD').stdout.strip() != 'main':
-            return finish('skipped: not on the main branch')
         if git('status', '--porcelain', '--untracked-files=no').stdout.strip():
-            return finish('skipped: files were changed in this folder')
+            return finish('略過更新：資料夾裡有檔案被修改過，請執行 git status 查看')
         before = git('rev-parse', 'HEAD').stdout.strip()
-        pulled = git('pull', '--ff-only', '--quiet', 'origin', 'main', timeout=20)
+        pulled = git('pull', '--ff-only', '--quiet', 'origin', 'main', timeout=30)
         if pulled.returncode != 0:
-            return finish('failed: ' + (pulled.stderr.strip() or 'git pull failed'))
+            return finish('更新失敗：' + (pulled.stderr.strip() or 'git pull 失敗').replace('\n', ' '))
         after = git('rev-parse', 'HEAD').stdout.strip()
         if before == after:
-            return finish(f'up to date ({after[:7]})')
+            return finish(f'已是最新版（{after[:7]}）')
         changed = git('diff', '--name-only', before, after).stdout.split()
-        return finish(f'updated {before[:7]} -> {after[:7]}: {", ".join(changed)}', 'server.py' in changed)
+        return finish(f'已更新 {before[:7]} → {after[:7]}：{"、".join(changed)}', 'server.py' in changed)
     except (OSError, subprocess.SubprocessError) as e:
-        return finish(f'failed: {e}')
+        return finish(f'更新失敗：{e}')
+
+
+def version():
+    """The commit being served and the last update result, for the pages."""
+    head = ''
+    try:
+        with open(os.path.join(APP_DIR, '.git', 'HEAD'), encoding='utf-8') as f:
+            ref = f.read().strip()
+        if ref.startswith('ref: '):
+            ref_path = os.path.join(APP_DIR, '.git', *ref[5:].split('/'))
+            if os.path.isfile(ref_path):
+                with open(ref_path, encoding='utf-8') as f:
+                    head = f.read().strip()
+            else:
+                with open(os.path.join(APP_DIR, '.git', 'packed-refs'), encoding='utf-8') as f:
+                    head = next((l.split()[0] for l in f if l.strip().endswith(' ' + ref[5:])), '')
+        else:
+            head = ref
+    except OSError:
+        pass
+    try:
+        with open(UPDATE_LOG, encoding='utf-8') as f:
+            last = f.read().strip()
+    except OSError:
+        last = ''
+    return {'commit': head[:7], 'update': last}
 
 
 def replace_running():

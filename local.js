@@ -88,5 +88,30 @@
     }
   }
 
+  // Shows which version the desktop helper serves, and whether its last
+  // self-update worked, at the end of the page links.
+  async function showVersion() {
+    let info;
+    try {
+      const res = await call('api/version');
+      if (!res) return;
+      info = await res.json();
+    } catch (e) {
+      return;  // not served by server.py
+    }
+    const nav = document.querySelector('.nav');
+    if (!nav || !info.commit) return;
+    const span = document.createElement('span');
+    const failed = /略過|失敗/.test(info.update);
+    span.className = 'version' + (failed ? ' warn' : '');
+    span.textContent = `版本 ${info.commit}` + (failed ? `　${info.update.replace(/^\S+ \S+ /, '')}` : '');
+    span.title = info.update || '';
+    nav.appendChild(span);
+  }
+  if (location.protocol.startsWith('http')) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showVersion);
+    else showVersion();
+  }
+
   root.ADRLocal = { detect };
 })(window);
