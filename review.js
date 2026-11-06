@@ -15,7 +15,9 @@
   const str = v => String(v == null ? '' : v).trim();
 
   // Every case row of the monthly sheets
-  // (識別碼 | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | 撰寫人).
+  // (識別碼 | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | 撰寫人 | 值得注意).
+  // 值得注意 is filled in on the overview page: the reason, or "V" for marked
+  // without one.
   function workbookCases(XLSX, bytes) {
     const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
     const out = [];
@@ -26,11 +28,18 @@
         const date = r[8] instanceof Date ? roundSeconds(r[8]) : P.parseDate(r[8]);
         out.push({
           id: str(r[0]), chartNo, drugCode: str(r[3]), drug: P.cleanDrug(r[4]), severity: str(r[5]),
-          source: str(r[6]), symptom: P.cleanSymptom(r[7]), date, writer: str(r[9]),
+          source: str(r[6]), symptom: P.cleanSymptom(r[7]), date, writer: str(r[9]), ...markOf(r[10]),
         });
       });
     });
     return out;
+  }
+
+  // Column K -> { marked, markNote }. "V" (or ✓, ★, ...) is a mark without a reason.
+  function markOf(value) {
+    const v = str(value);
+    if (!v) return { marked: false, markNote: '' };
+    return { marked: true, markNote: /^[vVｖＶ✓✔★☆*＊xXOo○●]$/.test(v) ? '' : v };
   }
 
   // ROC year-month ("11510") a case belongs to.
@@ -80,7 +89,7 @@
       out.push({
         id: f.id, chartNo: f.chartNo, drugCode: '', drug: facts.suspects.join(SEP), severity: '', source: f.source,
         symptom: F.splitSymptoms(f.symptoms).join(SEP), date, writer: '', month: f.id.slice(0, 5),
-        form: facts, formOnly: true,
+        marked: false, markNote: '', form: facts, formOnly: true,
       });
     });
     return out.sort((a, b) => a.id.localeCompare(b.id) || (a.date || 0) - (b.date || 0));
@@ -113,11 +122,14 @@
     return names.filter(Boolean).map(n => ({ key: n.toUpperCase(), name: n }));
   }
 
-  // Why a case is worth bringing up. Each flag: { code, label, level }, level
-  // 'high' (serious harm), 'mid' (strong causality or not recovered) or
-  // 'info' (patterns across the period, or marked by hand).
-  // `cases` is the period being reviewed: repeats are counted within it.
-  function flagCases(cases, { starred = new Set() } = {}) {
+  // Which cases are worth noting is the pharmacist's call: a case is
+  // `notable` when it is marked (column K, or `marks` not yet saved:
+  // Map(識別碼 -> reason, '' for marked without one, null for unmarked)).
+  // `hints` only suggest what to look at: { code, label, level }, level 'high'
+  // (serious), 'mid' (strong causality or not recovered) or 'info' (patterns
+  // across the period). `cases` is the period being reviewed: repeats are
+  // counted within it.
+  function flagCases(cases, { marks = new Map() } = {}) {
     const byDrug = new Map();
     const byPatient = new Map();
     cases.forEach(c => {
@@ -141,8 +153,12 @@
         add('repeatDrug', '同藥品多件：' + repeated.map(d => `${d.key}×${byDrug.get(d.key)}`).join(SEP), 'info');
       }
       if (byPatient.get(c.chartNo) > 1) add('repeatPatient', `同病人 ${byPatient.get(c.chartNo)} 件`, 'info');
-      if (starred.has(c.id)) add('starred', '手動標記', 'info');
-      return Object.assign({}, c, { flags, notable: flags.length > 0, serious: flags.some(x => x.level === 'high') });
+      const pending = marks.has(c.id);
+      const marked = pending ? marks.get(c.id) != null : c.marked;
+      const markNote = pending ? marks.get(c.id) || '' : c.markNote;
+      return Object.assign({}, c, {
+        hints: flags, marked, markNote, notable: marked, serious: flags.some(x => x.level === 'high'),
+      });
     });
   }
 
@@ -160,6 +176,7 @@
     return {
       total: flagged.length,
       notable: flagged.filter(c => c.notable).length,
+      suggested: flagged.filter(c => !c.notable && c.hints.length).length,
       serious: flagged.filter(c => c.serious).length,
       noForm: flagged.filter(c => !c.form).length,
       noWriter: flagged.filter(c => !c.formOnly && !c.writer).length,
@@ -170,14 +187,14 @@
   }
 
   // Tab-separated table (with header) for pasting into the meeting report.
-  const TSV_HEADER = ['識別碼', '得知日期', '病歷號', '藥品', '症狀', '嚴重度', '嚴重性（通報表）', '後續結果', 'Naranjo', '撰寫人', '值得注意'];
+  const TSV_HEADER = ['識別碼', '得知日期', '病歷號', '藥品', '症狀', '嚴重度', '嚴重性（通報表）', '後續結果', 'Naranjo', '撰寫人', '值得注意', '自動提示'];
   function toTsv(flagged) {
     const cell = v => String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ');
     return [TSV_HEADER].concat(flagged.map(c => [
       c.id, c.date ? P.formatDate(c.date) : '', c.chartNo, c.drug, c.symptom, c.severity,
       c.form ? SERIOUS_LABEL[c.form.seriousness] || (c.form.seriousness ? '非嚴重' : '') : '',
       c.form ? c.form.outcome : '', c.form && c.form.naranjoScore != null ? c.form.naranjoScore : '',
-      c.writer, c.flags.map(x => x.label).join('；'),
+      c.writer, c.notable ? c.markNote || 'V' : '', c.hints.map(x => x.label).join('；'),
     ])).map(r => r.map(cell).join('\t')).join('\r\n');
   }
 

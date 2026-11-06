@@ -58,6 +58,11 @@
   const WRITER = '撰寫人';
   const WRITER_COL = 9;
   const writerAt = r => String(r[WRITER_COL] == null ? '' : r[WRITER_COL]).trim();
+  // Cases marked as worth noting for the ADR meeting (overview.html): the
+  // reason, or MARKED when none was given. Empty means not marked.
+  const NOTE = '值得注意';
+  const NOTE_COL = 10;
+  const MARKED = 'V';
 
   // What the workbook holds: { months: { '202610': { key: '11510', rows, maxSeq } },
   // ids: Map(rowKey -> 識別碼), owners: Map(識別碼 -> its row) }. maxSeq is the
@@ -138,8 +143,10 @@
         const holders = r.recorded || !r.id ? [] : (byId.get(r.id) || []);
         const at = byKey.has(key) ? byKey.get(key) : holders[0];
         holders.forEach(i => { if (i !== at) drop.add(i); });
-        // A row taken over from another case does not keep that case's 撰寫人.
-        if (!byKey.has(key) && at !== undefined) delete ws[XLSX.utils.encode_cell({ r: at + base, c: WRITER_COL })];
+        // A row taken over from another case does not keep that case's 撰寫人 or mark.
+        if (!byKey.has(key) && at !== undefined) {
+          [WRITER_COL, NOTE_COL].forEach(c => delete ws[XLSX.utils.encode_cell({ r: at + base, c })]);
+        }
         const values = P.sheetRow(r);
         if (at === undefined) {
           XLSX.utils.sheet_add_aoa(ws, [values], Object.assign({ origin: -1 }, opts));
@@ -180,11 +187,12 @@
     return { bytes: out, added, updated, duplicates, removed };
   }
 
-  // Sets 撰寫人 for cases by 識別碼: writers is a Map(識別碼 -> name, '' clears).
-  // Labels column J in the header row (the 識別碼 row, or an empty row above
-  // the data) when it is not labelled yet.
-  // Returns { bytes, changed: [識別碼], missing: [識別碼] }.
-  function setWriters(XLSX, bytes, writers) {
+  // Sets one extra column (after the A–I case columns) for cases by 識別碼:
+  // values is a Map(識別碼 -> text, '' clears). Labels the column in the
+  // header row (the 識別碼 row, or an empty row above the data) when it is
+  // not labelled yet. Returns { bytes, changed: [識別碼], missing: [識別碼] }.
+  function setColumn(XLSX, bytes, col, label, writers) {
+    const cellAt = r => String(r[col] == null ? '' : r[col]).trim();
     const wb = load(XLSX, bytes);
     const changed = [];
     const left = new Map(writers);
@@ -199,8 +207,8 @@
         if (!left.has(id)) return;
         const value = String(left.get(id)).trim();
         left.delete(id);
-        if (writerAt(r) === value) return;
-        const addr = XLSX.utils.encode_cell({ r: base + i, c: WRITER_COL });
+        if (cellAt(r) === value) return;
+        const addr = XLSX.utils.encode_cell({ r: base + i, c: col });
         if (value) XLSX.utils.sheet_add_aoa(ws, [[value]], { origin: addr });
         else delete ws[addr];
         changed.push(id);
@@ -211,10 +219,10 @@
       const firstData = aoa.findIndex(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()));
       const emptyAbove = firstData === 0 || (firstData > 0 && aoa[firstData - 1].every(v => v === ''));
       const headRow = head >= 0 ? base + head : emptyAbove ? base + firstData - 1 : -1;
-      const headAddr = XLSX.utils.encode_cell({ r: headRow, c: WRITER_COL });
+      const headAddr = XLSX.utils.encode_cell({ r: headRow, c: col });
       if (headRow >= 0 && !ws[headAddr]) {
-        XLSX.utils.sheet_add_aoa(ws, [[WRITER]], { origin: headAddr });
-        if (ws['!cols'] && !ws['!cols'][WRITER_COL]) ws['!cols'][WRITER_COL] = { wch: 10 };
+        XLSX.utils.sheet_add_aoa(ws, [[label]], { origin: headAddr });
+        if (ws['!cols'] && !ws['!cols'][col]) ws['!cols'][col] = { wch: 10 };
       }
     });
     const out = changed.length
@@ -223,7 +231,12 @@
     return { bytes: out, changed, missing: [...left.keys()] };
   }
 
-  const api = { appendRows, readLedger, setWriters };
+  // 撰寫人 (column J): Map(識別碼 -> name).
+  const setWriters = (XLSX, bytes, writers) => setColumn(XLSX, bytes, WRITER_COL, WRITER, writers);
+  // 值得注意 (column K): Map(識別碼 -> reason, MARKED, or '' to unmark).
+  const setNotes = (XLSX, bytes, notes) => setColumn(XLSX, bytes, NOTE_COL, NOTE, notes);
+
+  const api = { appendRows, readLedger, setWriters, setNotes, NOTE_COL, MARKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRWorkbook = api;
 })(typeof window !== 'undefined' ? window : globalThis);

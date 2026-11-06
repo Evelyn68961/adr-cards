@@ -224,6 +224,7 @@ button:disabled { opacity: .4; cursor: default; }
 
 /* Case overview (overview.html) */
 .print-only { display: none; }
+.overview header, .overview main { max-width: 1440px; }
 .ov-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ov-period button { padding: 4px 12px; }
 .stat-notable { background: var(--warn-bg); border-color: #e0b44c; }
@@ -237,19 +238,25 @@ button:disabled { opacity: .4; cursor: default; }
 .ov-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .ov-table th, .ov-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .ov-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
-.ov-table td:nth-child(-n+4) { white-space: nowrap; }
+.ov-table td:nth-child(-n+4), .ov-table td:nth-child(7) { white-space: nowrap; }
 .ov-id { font-variant-numeric: tabular-nums; font-weight: 600; }
 .ov-row { cursor: pointer; }
 .ov-row:hover { background: #f3f7f7; }
-.ov-row.level-high { background: #fdecea; box-shadow: inset 4px 0 #c62828; }
-.ov-row.level-mid { background: var(--warn-bg); box-shadow: inset 4px 0 #e0a100; }
-.ov-row.level-info { box-shadow: inset 4px 0 var(--accent); }
+/* Marked by the pharmacist: highlighted. Hints only colour the left edge. */
+.ov-row.marked { background: var(--warn-bg); }
+.ov-row.hint-high { box-shadow: inset 4px 0 #c62828; }
+.ov-row.hint-mid { box-shadow: inset 4px 0 #e0a100; }
+.ov-row.hint-info { box-shadow: inset 4px 0 var(--accent); }
+.ov-mark { padding: 3px 10px; white-space: nowrap; background: var(--panel); color: var(--accent); font-size: .85rem; }
+.ov-mark.on { background: #e0a100; border-color: #e0a100; color: #fff; font-weight: 600; }
+.ov-reason { width: 100%; min-width: 12em; font: inherit; font-size: .85rem; padding: 2px 6px; border: 1px solid #e0b44c; border-radius: 4px; background: var(--panel); color: var(--text); }
+.ov-mark-cell .print-only { display: none; }
+.mark-status { margin: 8px 0 0; }
+.mark-status a { color: var(--accent); font-weight: 600; }
 .ov-row.open td { border-bottom-color: transparent; }
 .ov-table .hint { font-size: inherit; }
 .ov-sub { font-size: .8rem; color: var(--muted); }
 .ov-sub.serious { color: #a3261b; font-weight: 600; }
-.ov-star { padding: 0 6px; border: none; background: transparent; color: var(--muted); font-size: 1.1rem; line-height: 1; }
-.ov-star.on { color: #e0a100; }
 .flag { display: inline-block; margin: 0 4px 3px 0; padding: 0 8px; border-radius: 999px; font-size: .8rem; white-space: nowrap; }
 .flag.high { background: #c62828; color: #fff; }
 .flag.mid { background: #ffe08a; color: #6b4700; }
@@ -269,7 +276,9 @@ button:disabled { opacity: .4; cursor: default; }
   .overview .table-wrap { overflow: visible; }
   .overview .ov-table { font-size: 9pt; }
   .overview .ov-row { break-inside: avoid; }
-  .overview .ov-row.level-high, .overview .ov-row.level-mid, .overview .flag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .overview .ov-row.marked, .overview .ov-row[class*="hint-"], .overview .flag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .overview .ov-reason { display: none; }
+  .overview .ov-mark-cell .print-only { display: inline; }
   .overview .stat { padding: 4px 8px; }
   .overview .stat-value { font-size: 1.1rem; }
 }
