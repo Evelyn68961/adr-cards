@@ -247,10 +247,12 @@ button:disabled { opacity: .4; cursor: default; }
 .ov-row.hint-high { box-shadow: inset 4px 0 #c62828; }
 .ov-row.hint-mid { box-shadow: inset 4px 0 #e0a100; }
 .ov-row.hint-info { box-shadow: inset 4px 0 var(--accent); }
-.ov-mark { padding: 3px 10px; white-space: nowrap; background: var(--panel); color: var(--accent); font-size: .85rem; }
-.ov-mark.on { background: #e0a100; border-color: #e0a100; color: #fff; font-weight: 600; }
-.ov-reason { width: 100%; min-width: 12em; font: inherit; font-size: .85rem; padding: 2px 6px; border: 1px solid #e0b44c; border-radius: 4px; background: var(--panel); color: var(--text); }
-.ov-mark-cell .print-only { display: none; }
+.ov-row { user-select: none; }
+.ov-row.locked { cursor: default; }
+.ov-check-cell { text-align: center; }
+.ov-check { width: 20px; height: 20px; margin: 0; accent-color: #e0a100; cursor: pointer; }
+.ov-check-cell .print-only { display: none; }
+.ov-more { padding: 2px 10px; font-size: .8rem; background: var(--panel); color: var(--accent); white-space: nowrap; }
 .mark-status { margin: 8px 0 0; }
 .mark-status a { color: var(--accent); font-weight: 600; }
 .ov-row.open td { border-bottom-color: transparent; }
@@ -277,8 +279,8 @@ button:disabled { opacity: .4; cursor: default; }
   .overview .ov-table { font-size: 9pt; }
   .overview .ov-row { break-inside: avoid; }
   .overview .ov-row.marked, .overview .ov-row[class*="hint-"], .overview .flag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .overview .ov-reason { display: none; }
-  .overview .ov-mark-cell .print-only { display: inline; }
+  .overview .ov-check { display: none; }
+  .overview .ov-check-cell .print-only { display: inline; }
   .overview .stat { padding: 4px 8px; }
   .overview .stat-value { font-size: 1.1rem; }
 }

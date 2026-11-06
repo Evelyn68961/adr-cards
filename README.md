@@ -54,7 +54,7 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 - A case already in the sheet (same 病歷號 + 藥碼 + 得知日期) is never added twice: saving again **overwrites** that row with the card's current values (hand fixes to
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
-  **值得注意** (marked on the 案例總覽 page).
+  **值得注意** (ticked on the 案例總覽 page).
 - **撰寫人** (who writes up the case) is typed in the 本月案例清單 table (names used before are
   suggested) and saved to column J automatically; clearing the box clears it. Saves only rewrite
   columns A–I, so a case keeps its 撰寫人 when overwritten, except when a different case takes
@@ -133,29 +133,30 @@ For entering finished report forms into the TFDA online ADR form.
 ## Case overview (`overview.html`)
 
 For the routine ADR meeting: every case of a period at a glance, with the cases you choose to
-report marked.
+report ticked.
 
 - Reads `ADR通報.xlsx` and every `*通報表*.xls(x)` export in the ADR folder and its `ADR_<yyyMM>`
   folders (or picked files), and joins each case to its report form by 識別碼. A form whose
-  識別碼 is not in the workbook is listed too (it cannot be marked until it is in the workbook).
-- Pick a period (從 / 到, or 本月, 近 3 個月, 近 12 個月). The top shows the case count, marked
-  cases, cases with hints that are not marked yet, serious reactions, cases without a report
+  識別碼 is not in the workbook is listed too (it cannot be ticked until it is in the workbook).
+- Pick a period (從 / 到, or 本月, 近 3 個月, 近 12 個月). The top shows the case count, ticked
+  cases, cases with hints that are not ticked yet, serious reactions, cases without a report
   form, and the most common drugs and symptoms.
-- **值得注意** is your call: **☆ 標記** marks a case and opens a box for the reason (optional,
-  e.g. 新藥、教學案例). Marks are saved to column **K (值得注意)** of `ADR通報.xlsx`: the reason, or
-  `V` without one, so everyone sees the same marks, and typing into column K in Excel works too.
-  Saving again from the main page keeps a case's mark, except when a different case takes over
-  its 識別碼. If the workbook is open in Excel, the mark is kept on the page and saved when you
-  come back after closing Excel. With picked files (no desktop helper) the marked workbook is
-  offered as a download to replace the original.
-- **自動提示** only suggests cases to look at; it never marks one by itself:
+- **值得注意** is your call: click a row (or its checkbox) to tick it, Shift-click to tick a
+  whole range, or use **全部勾選** / **全部取消** for every row shown. Rows stay where they are
+  while you tick. Ticks are saved to column **K (值得注意)** of `ADR通報.xlsx` as `V`, so everyone
+  sees the same ones; anything typed into column K in Excel counts as ticked. Saving again from
+  the main page keeps a case's tick, except when a different case takes over its 識別碼. If the
+  workbook is open in Excel, ticks are kept on the page and saved when you come back after
+  closing Excel. With picked files (no desktop helper) the ticked workbook is offered as a
+  download to replace the original. **詳情** shows the form's 案件描述, 處置, 嚴重性, 結果, Naranjo,
+  sex and age.
+- **自動提示** only suggests cases to look at; it never ticks one by itself:
   - red: the form's 不良反應嚴重性 is serious (death, life-threatening, disability, birth defect,
     hospitalisation, other serious), or the outcome is death; without a form, HIS 嚴重度 3_嚴重.
   - yellow: outcome 有後遺症 or 尚未恢復, a positive rechallenge (有再投予且不良反應再發生), or
     Naranjo ≥ 9 / Definite.
   - green: the same 藥碼 in more than one case of the period, or the same patient more than once.
-- Marked cases are highlighted and listed first. Click a row for the form's 案件描述, 處置,
-  嚴重性, 結果, Naranjo, sex and age.
+- Ticked cases are highlighted and, with cases that have hints, listed first.
 - **複製表格** copies the rows shown (tab-separated, no patient names) for Excel or Word;
   **列印** prints the summary and table on landscape A4.
 

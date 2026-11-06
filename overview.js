@@ -1,6 +1,6 @@
 // Case overview page: reads ADR通報.xlsx and the report-form exports from the
 // ADR folder (or picked files) and lists the cases of a chosen period. The
-// pharmacist marks the cases worth noting for the routine ADR meeting (saved
+// pharmacist ticks the cases worth noting for the routine ADR meeting (saved
 // to column K of ADR通報.xlsx); automatic hints (see review.js) suggest which.
 (function () {
   'use strict';
@@ -20,8 +20,10 @@
   let all = [];            // joined cases (review.joinForms)
   let shown = [];          // flagged cases of the period, in table order
   const open = new Set();  // 識別碼 whose details row is expanded
-  // Marks not yet in Excel: 識別碼 -> reason ('' = marked without one), null = unmarked.
+  // Marks not yet in Excel: 識別碼 -> true (marked) / false (unmarked).
   const pendingMarks = new Map();
+  let order = null;        // 識別碼 in table order; kept while ticking so rows don't jump
+  let lastTicked = null;   // row index of the last tick, for Shift-click ranges
   let markTimer = null;
   let markSaving = false;
 
@@ -100,7 +102,7 @@
     setData({ cases: book ? R.workbookCases(XLSX, book.bytes) : [], forms: F.mergeCases(forms), names });
   }
 
-  async function reload() {
+  async function reload(resort = true) {
     if (picked) return;
     $('sourceStatus').textContent = '讀取中…';
     try {
@@ -109,13 +111,13 @@
         $('sourceStatus').textContent = `請按「選擇檔案」，選取 ${WORKBOOK_NAME}（可同時選取「通報表」Excel）。`;
         return;
       }
-      setData(await loadFromFolder());
+      setData(await loadFromFolder(), resort);
     } catch (e) {
       $('sourceStatus').textContent = '讀取失敗：' + e.message;
     }
   }
 
-  function setData({ cases, forms, names }) {
+  function setData({ cases, forms, names }, resort = true) {
     all = R.joinForms(cases, forms);
     if (!names.length) {
       $('sourceStatus').textContent = `ADR 資料夾裡找不到 ${WORKBOOK_NAME} 或「通報表」Excel。`;
@@ -135,16 +137,17 @@
       $('fromMonth').value = $('toMonth').value = months[0];
     }
     $('overviewPanel').hidden = false;
-    render();
+    render(resort);
   }
 
   // ---- marking (column K of ADR通報.xlsx) ----
 
-  function setMark(id, value) {
-    pendingMarks.set(id, value);
+  function setMarks(ids, marked) {
+    ids.forEach(id => pendingMarks.set(id, marked));
     clearTimeout(markTimer);
     markTimer = setTimeout(saveMarks, 600);
     $('markStatus').textContent = '儲存中…';
+    render(false);
   }
 
   // Writes the queued marks into the workbook in one go. With picked files
@@ -158,19 +161,14 @@
     }
     markSaving = true;
     const batch = new Map(pendingMarks);
-    const cells = new Map([...batch].map(([id, v]) => [id, v == null ? '' : v || W.MARKED]));
+    const cells = new Map([...batch].map(([id, marked]) => [id, marked ? W.MARKED : '']));
     try {
-      let bytes;
-      if (folder) {
-        const handle = await folder.getFileHandle(WORKBOOK_NAME);
-        bytes = await bytesOf(await handle.getFile());
-      } else {
-        bytes = picked.bytes;
-      }
+      const handle = folder && await folder.getFileHandle(WORKBOOK_NAME);
+      const bytes = folder ? await bytesOf(await handle.getFile()) : picked.bytes;
       const result = W.setNotes(XLSX, bytes, cells);
       if (result.changed.length) {
         if (folder) {
-          const w = await (await folder.getFileHandle(WORKBOOK_NAME)).createWritable();
+          const w = await handle.createWritable();
           await w.write(result.bytes);
           await w.close();
         } else {
@@ -181,13 +179,13 @@
       result.missing.forEach(id => pendingMarks.delete(id));
       const missing = result.missing.length ? `（${result.missing.join('、')} 不在 ${WORKBOOK_NAME} 中，無法標記）` : '';
       if (folder) {
-        $('markStatus').textContent = `標記已存入 ${WORKBOOK_NAME} 的「值得注意」欄${missing}`;
-        if (!pendingMarks.size) await keepStatus(reload);
+        $('markStatus').textContent = `已存入 ${WORKBOOK_NAME} 的「值得注意」欄${missing}`;
+        if (!pendingMarks.size) await keepStatus(() => reload(false));
       } else {
         showDownload(missing);
         if (!pendingMarks.size) {
           all = mergeMarks();
-          render();
+          render(false);
         }
       }
     } catch (e) {
@@ -202,7 +200,7 @@
     const byId = new Map(R.workbookCases(XLSX, picked.bytes).map(c => [c.id + '|' + c.chartNo, c]));
     return all.map(c => {
       const fresh = byId.get(c.id + '|' + c.chartNo);
-      return fresh ? Object.assign({}, c, { marked: fresh.marked, markNote: fresh.markNote }) : c;
+      return fresh ? Object.assign({}, c, { marked: fresh.marked }) : c;
     });
   }
 
@@ -224,6 +222,19 @@
     $('markStatus').textContent = message;
   }
 
+  const canMark = c => c.id && !c.formOnly;
+
+  // A tick on row i; with Shift, every row from the last tick to this one
+  // gets the same state.
+  function tick(i, shift) {
+    const c = shown[i];
+    if (!canMark(c)) return;
+    const marked = !c.notable;
+    const [a, b] = shift && lastTicked != null ? [Math.min(lastTicked, i), Math.max(lastTicked, i)] : [i, i];
+    lastTicked = i;
+    setMarks(shown.slice(a, b + 1).filter(canMark).map(x => x.id), marked);
+  }
+
   // ---- rendering ----
 
   function period() {
@@ -234,8 +245,11 @@
 
   const hintLevel = c => c.hints.reduce((best, f) => (LEVEL_RANK[f.level] > LEVEL_RANK[best] ? f.level : best), 'none');
   const rank = c => (c.notable ? 10 : 0) + LEVEL_RANK[hintLevel(c)];
+  const rowKey = c => c.id + '|' + c.chartNo;
 
-  function render() {
+  // resort: re-apply the sort and the 只看已標記 filter. Ticking and saving
+  // keep the current rows and order, so nothing moves under the mouse.
+  function render(resort = true) {
     const { from, to } = period();
     const inPeriod = all.filter(c => c.month >= from && c.month <= to);
     const flagged = R.flagCases(inPeriod, { marks: pendingMarks });
@@ -252,12 +266,16 @@
     $('topDrugs').replaceChildren(...chips(sum.drugs));
     $('topSymptoms').replaceChildren(...chips(sum.symptoms));
 
-    shown = flagged.filter(c => !$('notableOnly').checked || c.notable);
-    if ($('notableFirst').checked) shown.sort((a, b) => rank(b) - rank(a) || a.id.localeCompare(b.id));
+    if (resort || !order) {
+      const list = flagged.filter(c => !$('notableOnly').checked || c.notable);
+      if ($('notableFirst').checked) list.sort((a, b) => rank(b) - rank(a) || a.id.localeCompare(b.id));
+      order = list.map(rowKey);
+      lastTicked = null;
+    }
+    const byKey = new Map(flagged.map(c => [rowKey(c), c]));
+    shown = order.map(k => byKey.get(k)).filter(Boolean);
     $('emptyHint').hidden = shown.length > 0;
     $('emptyHint').textContent = flagged.length ? '這段期間還沒有標記為值得注意的案例。' : '這段期間沒有案例。';
-    // Don't redraw the rows under someone typing a reason.
-    if ($('rows').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
     $('rows').replaceChildren(...shown.flatMap(rowsFor));
   }
 
@@ -272,45 +290,29 @@
       c.form && c.form.seriousness ? el('div', { class: 'ov-sub' + (serious ? ' serious' : '') }, serious || '非嚴重') : null);
   }
 
-  function markButton(c) {
-    const canMark = c.id && !c.formOnly;
-    return el('button', {
-      type: 'button',
-      class: 'ov-mark' + (c.notable ? ' on' : ''),
-      disabled: !canMark,
-      'aria-pressed': c.notable ? 'true' : 'false',
-      title: canMark ? (c.notable ? '取消標記' : '標記為值得注意') : `${WORKBOOK_NAME} 中沒有這個案例，無法標記`,
+  function rowsFor(c, i) {
+    const isOpen = open.has(c.id);
+    const box = el('input', {
+      type: 'checkbox', class: 'ov-check', 'aria-label': `${c.id} 值得注意`,
+      disabled: !canMark(c),
+      title: canMark(c) ? '' : `${WORKBOOK_NAME} 中沒有這個案例，無法標記`,
+    });
+    box.checked = c.notable;
+    const details = el('button', {
+      type: 'button', class: 'ov-more no-print', 'aria-expanded': isOpen ? 'true' : 'false',
       onclick: e => {
         e.stopPropagation();
-        setMark(c.id, c.notable ? null : '');
-        render();
-        if (!c.notable) {
-          const input = document.querySelector(`.ov-reason[data-id="${c.id}"]`);
-          if (input) input.focus();
-        }
+        if (isOpen) open.delete(c.id); else open.add(c.id);
+        render(false);
       },
-    }, c.notable ? '★ 已標記' : '☆ 標記');
-  }
-
-  function markCell(c) {
-    if (!c.notable) return el('td', { class: 'ov-mark-cell' });
-    const input = el('input', {
-      class: 'ov-reason', 'data-id': c.id, placeholder: '原因（可不填）', 'aria-label': `${c.id} 值得注意的原因`,
-      onclick: e => e.stopPropagation(),
-      onkeydown: e => { if (e.key === 'Enter') e.target.blur(); },
-      onchange: e => setMark(c.id, e.target.value.trim()),
-    });
-    input.value = c.markNote;
-    return el('td', { class: 'ov-mark-cell' }, input, el('span', { class: 'print-only' }, c.markNote || '✓'));
-  }
-
-  function rowsFor(c) {
-    const isOpen = open.has(c.id);
+    }, isOpen ? '收合' : '詳情');
+    // Clicking anywhere on the row ticks it (Shift-click ticks a range).
     const tr = el('tr', {
-      class: 'ov-row' + (c.notable ? ' marked' : '') + ` hint-${hintLevel(c)}` + (isOpen ? ' open' : ''),
-      onclick: () => { if (isOpen) open.delete(c.id); else open.add(c.id); render(); },
+      class: 'ov-row' + (c.notable ? ' marked' : '') + ` hint-${hintLevel(c)}` + (isOpen ? ' open' : '') + (canMark(c) ? '' : ' locked'),
+      onmousedown: e => { if (e.shiftKey) e.preventDefault(); },  // no text selection on Shift-click
+      onclick: e => tick(i, e.shiftKey),
     },
-    el('td', { class: 'no-print' }, markButton(c)),
+    el('td', { class: 'ov-check-cell' }, box, el('span', { class: 'print-only' }, c.notable ? '✓' : '')),
     el('td', { class: 'ov-id' }, c.id || '—'),
     el('td', {}, c.date ? P.formatDate(c.date) : '—'),
     el('td', {}, c.chartNo),
@@ -319,8 +321,8 @@
     severityCell(c),
     el('td', {}, outcomeText(c)),
     el('td', {}, c.writer || el('span', { class: 'hint' }, '—')),
-    markCell(c),
-    el('td', {}, ...c.hints.map(f => el('span', { class: 'flag ' + f.level }, f.label))));
+    el('td', {}, ...c.hints.map(f => el('span', { class: 'flag ' + f.level }, f.label))),
+    el('td', { class: 'no-print' }, details));
     if (!isOpen) return [tr];
     return [tr, detailRow(c)];
   }
@@ -346,10 +348,13 @@
 
   // ---- wiring ----
 
-  $('fromMonth').addEventListener('change', render);
-  $('toMonth').addEventListener('change', render);
-  $('notableOnly').addEventListener('change', render);
-  $('notableFirst').addEventListener('change', render);
+  ['fromMonth', 'toMonth', 'notableOnly', 'notableFirst'].forEach(id => $(id).addEventListener('change', () => render()));
+  $('markAll').addEventListener('click', () => setMarks(shown.filter(c => canMark(c) && !c.notable).map(c => c.id), true));
+  $('markNone').addEventListener('click', () => {
+    const marked = shown.filter(c => canMark(c) && c.notable);
+    if (marked.length > 1 && !confirm(`取消這 ${marked.length} 件的標記？`)) return;
+    setMarks(marked.map(c => c.id), false);
+  });
   document.querySelectorAll('[data-range]').forEach(b => b.addEventListener('click', () => {
     const latest = $('toMonth').options[0] && $('toMonth').options[0].value;
     if (!latest) return;
@@ -379,7 +384,7 @@
   window.addEventListener('focus', () => {
     if (!folder || picked) return;
     if (pendingMarks.size) saveMarks();
-    else reload();
+    else reload(false);
   });
   reload();
 })();

@@ -50,8 +50,8 @@ test('hints at serious, not recovered, positive rechallenge and repeats, but onl
   assert.ok(formOnly.formOnly);
   assert.equal(formOnly.drug, 'Fakedrug');
 
-  // 1151001 is marked in the page (not yet saved), with no reason.
-  const oct = R.flagCases(all.filter(c => c.month === '11510'), { marks: new Map([['1151001', '']]) });
+  // 1151001 is ticked in the page (not yet saved).
+  const oct = R.flagCases(all.filter(c => c.month === '11510'), { marks: new Map([['1151001', true]]) });
   const byId = id => oct.find(c => c.id === id);
   const codes = id => byId(id).hints.map(f => f.code);
   assert.deepEqual(codes('1151001'), ['rechallenge', 'naranjo', 'repeatDrug']);
@@ -83,24 +83,25 @@ test('a quiet case has no flags', () => {
 });
 
 test('marks are saved to column K, read back, and cleared', () => {
-  const marked = W.setNotes(XLSX, bytes, new Map([['1151002', '新藥，教學案例'], ['1151003', W.MARKED], ['1159999', 'V']]));
+  const marked = W.setNotes(XLSX, bytes, new Map([['1151002', W.MARKED], ['1151003', W.MARKED], ['1159999', W.MARKED]]));
   assert.deepEqual(marked.changed, ['1151002', '1151003']);
   assert.deepEqual(marked.missing, ['1159999']);
   const sheet = XLSX.utils.sheet_to_json(XLSX.read(marked.bytes, { type: 'array' }).Sheets['202610'], { header: 1 });
   assert.equal(sheet[0][10], '值得注意');
   const read = R.workbookCases(XLSX, marked.bytes);
   const pick = id => read.find(c => c.id === id);
-  assert.deepEqual([pick('1151002').marked, pick('1151002').markNote], [true, '新藥，教學案例']);
-  assert.deepEqual([pick('1151003').marked, pick('1151003').markNote], [true, '']);
-  assert.equal(pick('1151001').marked, false);
-  // An unsaved unmark in the page wins over the workbook.
-  const [c3] = R.flagCases([pick('1151003')], { marks: new Map([['1151003', null]]) });
+  assert.equal(sheet[2][10], 'V');
+  assert.deepEqual(['1151001', '1151002', '1151003'].map(id => pick(id).marked), [false, true, true]);
+  // Anything typed into column K in Excel counts as ticked.
+  assert.equal(R.workbookCases(XLSX, W.setNotes(XLSX, bytes, new Map([['1151001', '教學']])).bytes)[0].marked, true);
+  // An unsaved untick in the page wins over the workbook.
+  const [c3] = R.flagCases([pick('1151003')], { marks: new Map([['1151003', false]]) });
   assert.equal(c3.notable, false);
   // Marks survive a later save of the same case, and can be cleared.
   const again = W.appendRows(XLSX, P, marked.bytes, P.assignIds(P.parseText(
     his(2, 'CEL01', 'Celebrex 膠囊 200 mg', '3_嚴重', 'Pruritus', '2026/10/09 10:00:00')).rows, 1,
   { idFor: () => '1151002', nextSeq: () => 1 })).bytes;
-  assert.equal(R.workbookCases(XLSX, again).find(c => c.id === '1151002').markNote, '新藥，教學案例');
+  assert.equal(R.workbookCases(XLSX, again).find(c => c.id === '1151002').marked, true);
   const cleared = W.setNotes(XLSX, again, new Map([['1151002', '']])).bytes;
   assert.equal(R.workbookCases(XLSX, cleared).find(c => c.id === '1151002').marked, false);
 });

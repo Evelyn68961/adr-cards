@@ -58,8 +58,8 @@
   const WRITER = '撰寫人';
   const WRITER_COL = 9;
   const writerAt = r => String(r[WRITER_COL] == null ? '' : r[WRITER_COL]).trim();
-  // Cases marked as worth noting for the ADR meeting (overview.html): the
-  // reason, or MARKED when none was given. Empty means not marked.
+  // Cases marked as worth noting for the ADR meeting (overview.html): MARKED,
+  // empty when not marked.
   const NOTE = '值得注意';
   const NOTE_COL = 10;
   const MARKED = 'V';
@@ -233,7 +233,7 @@
 
   // 撰寫人 (column J): Map(識別碼 -> name).
   const setWriters = (XLSX, bytes, writers) => setColumn(XLSX, bytes, WRITER_COL, WRITER, writers);
-  // 值得注意 (column K): Map(識別碼 -> reason, MARKED, or '' to unmark).
+  // 值得注意 (column K): Map(識別碼 -> MARKED, or '' to unmark).
   const setNotes = (XLSX, bytes, notes) => setColumn(XLSX, bytes, NOTE_COL, NOTE, notes);
 
   const api = { appendRows, readLedger, setWriters, setNotes, NOTE_COL, MARKED };

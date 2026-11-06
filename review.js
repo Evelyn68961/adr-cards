@@ -16,8 +16,7 @@
 
   // Every case row of the monthly sheets
   // (識別碼 | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | 撰寫人 | 值得注意).
-  // 值得注意 is filled in on the overview page: the reason, or "V" for marked
-  // without one.
+  // 值得注意 is ticked on the overview page ("V"); anything typed there counts as marked.
   function workbookCases(XLSX, bytes) {
     const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
     const out = [];
@@ -35,12 +34,7 @@
     return out;
   }
 
-  // Column K -> { marked, markNote }. "V" (or ✓, ★, ...) is a mark without a reason.
-  function markOf(value) {
-    const v = str(value);
-    if (!v) return { marked: false, markNote: '' };
-    return { marked: true, markNote: /^[vVｖＶ✓✔★☆*＊xXOo○●]$/.test(v) ? '' : v };
-  }
+  const markOf = value => ({ marked: str(value) !== '' });
 
   // ROC year-month ("11510") a case belongs to.
   function monthOf(c) {
@@ -89,7 +83,7 @@
       out.push({
         id: f.id, chartNo: f.chartNo, drugCode: '', drug: facts.suspects.join(SEP), severity: '', source: f.source,
         symptom: F.splitSymptoms(f.symptoms).join(SEP), date, writer: '', month: f.id.slice(0, 5),
-        marked: false, markNote: '', form: facts, formOnly: true,
+        marked: false, form: facts, formOnly: true,
       });
     });
     return out.sort((a, b) => a.id.localeCompare(b.id) || (a.date || 0) - (b.date || 0));
@@ -124,7 +118,7 @@
 
   // Which cases are worth noting is the pharmacist's call: a case is
   // `notable` when it is marked (column K, or `marks` not yet saved:
-  // Map(識別碼 -> reason, '' for marked without one, null for unmarked)).
+  // Map(識別碼 -> true / false)).
   // `hints` only suggest what to look at: { code, label, level }, level 'high'
   // (serious), 'mid' (strong causality or not recovered) or 'info' (patterns
   // across the period). `cases` is the period being reviewed: repeats are
@@ -153,12 +147,8 @@
         add('repeatDrug', '同藥品多件：' + repeated.map(d => `${d.key}×${byDrug.get(d.key)}`).join(SEP), 'info');
       }
       if (byPatient.get(c.chartNo) > 1) add('repeatPatient', `同病人 ${byPatient.get(c.chartNo)} 件`, 'info');
-      const pending = marks.has(c.id);
-      const marked = pending ? marks.get(c.id) != null : c.marked;
-      const markNote = pending ? marks.get(c.id) || '' : c.markNote;
-      return Object.assign({}, c, {
-        hints: flags, marked, markNote, notable: marked, serious: flags.some(x => x.level === 'high'),
-      });
+      const marked = marks.has(c.id) ? marks.get(c.id) : c.marked;
+      return Object.assign({}, c, { hints: flags, marked, notable: marked, serious: flags.some(x => x.level === 'high') });
     });
   }
 
@@ -194,7 +184,7 @@
       c.id, c.date ? P.formatDate(c.date) : '', c.chartNo, c.drug, c.symptom, c.severity,
       c.form ? SERIOUS_LABEL[c.form.seriousness] || (c.form.seriousness ? '非嚴重' : '') : '',
       c.form ? c.form.outcome : '', c.form && c.form.naranjoScore != null ? c.form.naranjoScore : '',
-      c.writer, c.notable ? c.markNote || 'V' : '', c.hints.map(x => x.label).join('；'),
+      c.writer, c.notable ? 'V' : '', c.hints.map(x => x.label).join('；'),
     ])).map(r => r.map(cell).join('\t')).join('\r\n');
   }
 

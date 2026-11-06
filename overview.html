@@ -13,7 +13,7 @@
   <header>
     <nav class="nav no-print"><a href="index.html">ADR 通報卡</a><a href="print.html">卡片列印</a><a href="tfda.html">TFDA 通報小幫手</a><span aria-current="page">案例總覽</span></nav>
     <h1>ADR 案例總覽</h1>
-    <p class="privacy no-print">資料只在這台電腦的瀏覽器中處理，不會上傳。按「☆ 標記」挑出例會要報告的案例，標記會存入 ADR通報.xlsx 的「值得注意」欄。</p>
+    <p class="privacy no-print">資料只在這台電腦的瀏覽器中處理，不會上傳。勾選例會要報告的案例，會存入 ADR通報.xlsx 的「值得注意」欄。</p>
     <p id="printTitle" class="print-only"></p>
   </header>
 
@@ -46,8 +46,8 @@
 
       <div class="stats">
         <div class="stat"><span class="stat-label">案例數</span><span id="statTotal" class="stat-value"></span></div>
-        <div class="stat stat-notable"><span class="stat-label">值得注意（已標記）</span><span id="statNotable" class="stat-value"></span></div>
-        <div class="stat no-print"><span class="stat-label">有自動提示、未標記</span><span id="statSuggested" class="stat-value"></span></div>
+        <div class="stat stat-notable"><span class="stat-label">值得注意（已勾選）</span><span id="statNotable" class="stat-value"></span></div>
+        <div class="stat no-print"><span class="stat-label">有自動提示、未勾選</span><span id="statSuggested" class="stat-value"></span></div>
         <div class="stat stat-serious"><span class="stat-label">嚴重不良反應</span><span id="statSerious" class="stat-value"></span></div>
         <div class="stat"><span class="stat-label">尚無通報表</span><span id="statNoForm" class="stat-value"></span></div>
       </div>
@@ -58,27 +58,29 @@
       </div>
 
       <div class="controls no-print">
-        <label class="done-toggle"><input id="notableOnly" type="checkbox"> 只看已標記</label>
-        <label class="done-toggle"><input id="notableFirst" type="checkbox" checked> 已標記、有提示的排在前面</label>
-        <span class="hint">點一列看案件描述。「自動提示」只是建議，要不要報告由你標記決定。</span>
+        <button id="markAll" type="button" class="secondary">全部勾選</button>
+        <button id="markNone" type="button" class="secondary">全部取消</button>
+        <label class="done-toggle"><input id="notableOnly" type="checkbox"> 只看已勾選</label>
+        <label class="done-toggle"><input id="notableFirst" type="checkbox" checked> 已勾選、有提示的排在前面</label>
+        <span class="hint">點一列就勾選／取消；按住 Shift 再點，可一次勾選一整段。「自動提示」只是建議。</span>
       </div>
       <p id="markStatus" class="hint mark-status no-print"></p>
 
       <div class="table-wrap">
         <table class="ov-table">
           <thead><tr>
-            <th class="no-print">標記</th><th>識別碼</th><th>得知日期</th><th>病歷號</th><th>藥品</th><th>症狀</th>
-            <th>嚴重度</th><th>後續結果</th><th>撰寫人</th><th>值得注意</th><th>自動提示</th>
+            <th>值得注意</th><th>識別碼</th><th>得知日期</th><th>病歷號</th><th>藥品</th><th>症狀</th>
+            <th>嚴重度</th><th>後續結果</th><th>撰寫人</th><th>自動提示</th><th class="no-print"></th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
       <p id="emptyHint" class="hint" hidden>這段期間沒有案例。</p>
       <details class="ov-legend no-print">
-        <summary>標記與自動提示</summary>
+        <summary>勾選與自動提示</summary>
         <ul>
-          <li><strong>值得注意</strong>：由你按「☆ 標記」決定，可填原因（例如「新藥」、「教學案例」）。存在 ADR通報.xlsx 的 K 欄「值得注意」，大家看到的一樣；在 Excel 直接填 K 欄也可以。</li>
-          <li><strong>自動提示</strong>只是幫忙找，不會自動算成值得注意：</li>
+          <li><strong>值得注意</strong>：由你勾選決定，存在 ADR通報.xlsx 的 K 欄「值得注意」（V），大家看到的一樣；在 Excel 的 K 欄填任何字也算勾選。</li>
+          <li><strong>自動提示</strong>只是幫忙找，不會自動勾選：</li>
           <li><span class="flag high">嚴重</span> 通報表的不良反應嚴重性為死亡、危及生命、永久性殘疾、先天性畸形、導致住院或延長住院、其他嚴重不良反應；或結果為死亡；尚無通報表時，HIS 嚴重度為「3_嚴重」。</li>
           <li><span class="flag mid">注意</span> 後續結果為有後遺症或尚未恢復、再投予後不良反應再發生、Naranjo ≥ 9（確定相關）。</li>
           <li><span class="flag info">提醒</span> 期間內同一藥碼有多件、同一病人有多件。</li>
@@ -94,7 +96,7 @@
   <script src="parse.js?v=20261104"></script>
   <script src="workbook.js?v=20261106"></script>
   <script src="forms.js?v=20261106"></script>
-  <script src="review.js?v=20261106b"></script>
-  <script src="overview.js?v=20261106b"></script>
+  <script src="review.js?v=20261106c"></script>
+  <script src="overview.js?v=20261106c"></script>
 </body>
 </html>
