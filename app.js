@@ -626,6 +626,7 @@
       const result = W.setWriters(window.XLSX, bytes, batch);
       if (result.changed.length) await writeFile(folder, WORKBOOK_NAME, result.bytes);
       batch.forEach((name, id) => { if (pendingWriters.get(id) === name) pendingWriters.delete(id); });
+      $('writerStatus').title = '';
       $('writerStatus').textContent = result.missing.length
         ? `Excel 中找不到 ${result.missing.join('、')}，撰寫人未儲存。`
         : `撰寫人已存入 ${WORKBOOK_NAME}（${[...batch].map(([id, n]) => `${id}：${n || '清除'}`).join('、')}）`;
@@ -633,6 +634,7 @@
     } catch (e) {
       // Usually Excel has the file open; never alarming, it retries by itself.
       $('writerStatus').textContent = `已記下 ${pendingWriters.size} 位撰寫人，${WORKBOOK_NAME} 可以寫入時（例如關閉 Excel 後）會自動存入。`;
+      $('writerStatus').title = `原因：${e.message}`;  // shown on hover, for troubleshooting
       console.warn('撰寫人 not saved yet:', e);
       writerTimer = setTimeout(saveWriters, 5000);
     } finally {
