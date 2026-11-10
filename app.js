@@ -584,7 +584,8 @@
   }
 
   // A dropdown, so a name is one click (no typing, no Chinese input-method
-  // mishaps); 「＋ 新增…」 asks for a name not used before.
+  // mishaps); 「＋ 新增…」 asks for a name not used before. dropdown.js draws
+  // the list, since Chrome's own one can crash the page on some PCs.
   function writerCell(r) {
     const td = document.createElement('td');
     if (!r.id) return td;
@@ -595,16 +596,14 @@
     const option = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
     const names = writerNames();
     if (current && !names.includes(current)) names.push(current);
-    select.append(option('', '未指定'), ...names.map(n => option(n, n)), option(NEW_WRITER, '＋ 新增…'));
+    const add = option(NEW_WRITER, '＋ 新增…');
+    add.dataset.ask = '輸入撰寫人姓名';  // asked inside the list (dropdown.js)
+    select.append(option('', '未指定'), ...names.map(n => option(n, n)), add);
     select.value = current;
     select.addEventListener('change', () => {
-      let name = select.value;
-      if (name === NEW_WRITER) {
-        name = (prompt('撰寫人姓名') || '').trim();
-        if (!name) { select.value = current; return; }
-      }
+      if (select.value === NEW_WRITER) { select.value = current; return; }
       select.blur();
-      setWriter(r.id, name);
+      setWriter(r.id, select.value);
     });
     td.appendChild(select);
     return td;

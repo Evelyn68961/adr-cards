@@ -178,7 +178,8 @@ case data to this repo.
 
 ## Development
 
-No build step. `parse.js` (parsing), `workbook.js` (Excel append), `pdf.js` (PDF writer), `forms.js`
+No build step. `dropdown.js` draws every page's dropdown lists itself, because Chrome's own
+list can crash the page (STATUS_BREAKPOINT) on some Windows PCs. `parse.js` (parsing), `workbook.js` (Excel append), `pdf.js` (PDF writer), `forms.js`
 (report forms) and `review.js` (overview flags) are pure
 and tested in Node; `app.js` is the page. `lib/xlsx.full.min.js` is SheetJS CE 0.20.3
 (Apache-2.0, see `lib/xlsx.LICENSE`).
