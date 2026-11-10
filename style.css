@@ -98,7 +98,11 @@ button:disabled { opacity: .4; cursor: default; }
 .card-missing { color: var(--warn-text); font-weight: 600; }
 .status-list td .writer { width: 8em; font: inherit; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); }
 .status-list td .writer:placeholder-shown { border-style: dashed; }
-.writer-status { margin: 8px 0 0; }
+.writer-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; }
+.writer-status { margin: 0; }
+.writer-status.saved { color: var(--ok-text); font-weight: 600; }
+.writer-status.failed { padding: 6px 10px; border-radius: 6px; background: var(--warn-bg); color: var(--warn-text); font-weight: 600; }
+.status-list td .writer.unsaved { border-color: #e0a100; background: var(--warn-bg); }
 
 .messages { list-style: none; margin: 10px 0 0; padding: 0; font-size: .9rem; }
 .messages li { padding: 6px 10px; border-radius: 6px; margin-top: 4px; }

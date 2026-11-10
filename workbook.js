@@ -10,6 +10,20 @@
     return XLSX.read(bytes, { type: 'array', cellDates: true, cellStyles: true, cellNF: true });
   }
 
+  // Every write goes through here. A "rest of the columns" width rule (e.g.
+  // K:XFD) is read back as 16,384 separate columns; written out as such it
+  // bloats the file ~80x and can make the page run out of memory and crash
+  // (STATUS_BREAKPOINT). Only the columns in use are kept.
+  function save(XLSX, wb) {
+    wb.SheetNames.forEach(name => {
+      const ws = wb.Sheets[name];
+      if (ws['!cols'] && ws['!ref']) {
+        ws['!cols'] = ws['!cols'].slice(0, XLSX.utils.decode_range(ws['!ref']).e.c + 1);
+      }
+    });
+    return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }));
+  }
+
   // Excel stores whole seconds; SheetJS can return x.999s for them.
   function roundSeconds(date) {
     return new Date(Math.round(date.getTime() / 1000) * 1000);
@@ -189,18 +203,7 @@
       });
     });
 
-    // A "rest of the columns" width rule (e.g. I:XFD) is read back as 16,384
-    // separate columns and would bloat the file ~80x; keep only used columns.
-    wb.SheetNames.forEach(name => {
-      const ws = wb.Sheets[name];
-      if (ws['!cols'] && ws['!ref']) {
-        ws['!cols'] = ws['!cols'].slice(0, XLSX.utils.decode_range(ws['!ref']).e.c + 1);
-      }
-    });
-
-    const out = added.length || updated.length || removed.length
-      ? new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }))
-      : bytes;
+    const out = added.length || updated.length || removed.length ? save(XLSX, wb) : bytes;
     return { bytes: out, added, updated, duplicates, removed };
   }
 
@@ -242,9 +245,7 @@
         if (ws['!cols'] && !ws['!cols'][col]) ws['!cols'][col] = { wch: 10 };
       }
     });
-    const out = changed.length
-      ? new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }))
-      : bytes;
+    const out = changed.length ? save(XLSX, wb) : bytes;
     return { bytes: out, changed, missing: [...left.keys()] };
   }
 

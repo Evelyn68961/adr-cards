@@ -545,9 +545,10 @@
     $('statNoCard').textContent = `${noCard.length} 件`;
 
     const unassigned = rows.filter(r => r.id && !writerOf(r)).length;
-    if (!writerSaving && !pendingWriters.size) {
+    if (!writerSaving && !pendingWriters.size && !/saved|failed/.test($('writerStatus').className)) {
       $('writerStatus').textContent = rows.length ? (unassigned ? `尚未指定撰寫人：${unassigned} 件` : '每個案例都已指定撰寫人') : '';
     }
+    showWriterState(/failed/.test($('writerStatus').className));
     $('statusEmpty').hidden = rows.length > 0;
     // Don't redraw the rows under an open name dropdown.
     if ($('statusRows').contains(document.activeElement)) return;
@@ -571,54 +572,61 @@
 
   // ---- 撰寫人 (who writes up each case) ----------------------------------------
 
-  const pendingWriters = new Map();   // 識別碼 -> name not yet in Excel
-  let writerTimer = null;
+  const pendingWriters = new Map();   // 識別碼 -> name typed but not saved yet
   let writerSaving = false;
 
   const writerOf = r => (pendingWriters.has(r.id) ? pendingWriters.get(r.id) : r.writer);
 
-  // A plain text box: type or paste the name; it is saved when you leave the
-  // box or press Enter. No suggestion list (Chrome's own lists crashed the
-  // page on some PCs).
+  // A plain text box: type or paste the name, then press 儲存撰寫人.
   function writerCell(r) {
     const td = document.createElement('td');
     if (!r.id) return td;
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'writer';
+    input.className = 'writer' + (pendingWriters.has(r.id) ? ' unsaved' : '');
     input.autocomplete = 'off';
     input.setAttribute('aria-label', `${r.id} 撰寫人`);
     input.placeholder = '未指定';
     input.value = writerOf(r);
-    input.addEventListener('change', () => {
+    input.addEventListener('input', () => {
       const name = input.value.trim();
-      if (name !== writerOf(r)) setWriter(r.id, name);
+      if (name === r.writer) pendingWriters.delete(r.id);
+      else pendingWriters.set(r.id, name);
+      input.classList.toggle('unsaved', pendingWriters.has(r.id));
+      showWriterState();
     });
-    // Enter that picks a character in a Chinese input method is not "done".
+    // Enter (not the one that picks a character in a Chinese input method) saves.
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) input.blur();
+      if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) saveWriters();
     });
     td.appendChild(input);
     return td;
   }
 
-  function setWriter(id, name) {
-    pendingWriters.set(id, name);
-    clearTimeout(writerTimer);
-    writerTimer = setTimeout(saveWriters, 500);
-    $('writerStatus').textContent = '儲存中…';
-    renderStatus();
+  // Enables the button, and (unless a save result is showing) says how many
+  // typed names are not saved yet.
+  function showWriterState(keepMessage = false) {
+    $('saveWritersBtn').disabled = !pendingWriters.size || writerSaving;
+    if (pendingWriters.size && !keepMessage) {
+      $('writerStatus').className = 'hint writer-status';
+      $('writerStatus').textContent = `${pendingWriters.size} 位撰寫人尚未儲存，請按「儲存撰寫人」。`;
+    }
   }
 
-  // Writes the queued names into ADR通報.xlsx in one go. While Excel has the
-  // file open (Windows locks it), the names stay on the page and are retried
-  // every few seconds until Excel is closed.
+  // Writes every typed name into ADR通報.xlsx in one go and says plainly
+  // whether it worked.
   async function saveWriters() {
-    clearTimeout(writerTimer);
-    if (!pendingWriters.size) return;
-    if (saving || writerSaving) { writerTimer = setTimeout(saveWriters, 800); return; }
+    if (!pendingWriters.size || writerSaving) return;
+    if (saving) {
+      $('writerStatus').textContent = '正在存入卡片，請稍後再按一次「儲存撰寫人」。';
+      return;
+    }
     writerSaving = true;
+    showWriterState(true);
+    $('writerStatus').className = 'hint writer-status';
+    $('writerStatus').textContent = '儲存中…';
     const batch = new Map(pendingWriters);
+    let ok = false;
     try {
       const handle = await existingFile(folder, WORKBOOK_NAME);
       if (!handle) throw new Error(`找不到 ${WORKBOOK_NAME}`);
@@ -626,21 +634,24 @@
       const result = W.setWriters(window.XLSX, bytes, batch);
       if (result.changed.length) await writeFile(folder, WORKBOOK_NAME, result.bytes);
       batch.forEach((name, id) => { if (pendingWriters.get(id) === name) pendingWriters.delete(id); });
-      $('writerStatus').title = '';
-      $('writerStatus').textContent = result.missing.length
-        ? `Excel 中找不到 ${result.missing.join('、')}，撰寫人未儲存。`
-        : `撰寫人已存入 ${WORKBOOK_NAME}（${[...batch].map(([id, n]) => `${id}：${n || '清除'}`).join('、')}）`;
       result.missing.forEach(id => pendingWriters.delete(id));
+      const saved = [...batch].filter(([id]) => !result.missing.includes(id));
+      $('writerStatus').className = 'hint writer-status saved';
+      $('writerStatus').textContent = `✓ 已存入 ${WORKBOOK_NAME}：` +
+        saved.map(([id, n]) => `${id} ${n || '（清除）'}`).join('、') +
+        (result.missing.length ? `。Excel 中找不到 ${result.missing.join('、')}，這些沒有存入。` : '');
+      ok = true;
     } catch (e) {
-      // Usually Excel has the file open; never alarming, it retries by itself.
-      $('writerStatus').textContent = `已記下 ${pendingWriters.size} 位撰寫人，${WORKBOOK_NAME} 可以寫入時（例如關閉 Excel 後）會自動存入。`;
-      $('writerStatus').title = `原因：${e.message}`;  // shown on hover, for troubleshooting
-      console.warn('撰寫人 not saved yet:', e);
-      writerTimer = setTimeout(saveWriters, 5000);
+      const locked = /開啟中|Excel|NoModification|InvalidState|lock|Permission/i.test(e.name + ' ' + e.message);
+      $('writerStatus').className = 'hint writer-status failed';
+      $('writerStatus').textContent = locked
+        ? `沒有存入：${WORKBOOK_NAME} 正在 Excel 中開著（或雲端硬碟正在同步）。請關閉 Excel，等幾秒後再按一次「儲存撰寫人」。名字都還留在格子裡。`
+        : `沒有存入：${e.message}。名字都還留在格子裡，可以再按一次「儲存撰寫人」。`;
     } finally {
       writerSaving = false;
+      showWriterState(true);
     }
-    if (!pendingWriters.size) {
+    if (ok) {
       const message = $('writerStatus').textContent;
       await refreshLedger();
       $('writerStatus').textContent = message;
@@ -763,7 +774,10 @@
     shownMonth = e.target.value;
     renderStatus();
   });
-  window.addEventListener('focus', () => (pendingWriters.size ? saveWriters() : refreshLedger()));
+  window.addEventListener('focus', () => refreshLedger());
+  $('saveWritersBtn').addEventListener('click', saveWriters);
+  // Typed names not saved yet: ask before the window is closed.
+  window.addEventListener('beforeunload', e => { if (pendingWriters.size) { e.preventDefault(); e.returnValue = ''; } });
   $('linkBtn').addEventListener('click', linkFolder);
   $('saveBtn').addEventListener('click', saveToFolder);
   $('pdfBtn').addEventListener('click', makePdf);

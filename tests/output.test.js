@@ -220,3 +220,22 @@ test('a typed 識別碼 skips automatic numbers and replaces a case in another m
   assert.deepEqual(ids('202610'), ['1151001', '1151003']);
   assert.deepEqual(ids('202611'), ['1151002']);
 });
+
+test('setWriters and setNotes do not expand a whole-row column width rule', () => {
+  // Excel's "rest of the columns" width rule (e.g. K:XFD) is read back as
+  // 16,384 columns; writing them all made the page run out of memory.
+  const cards = P.assignIds(P.parseText(row(1, '2026/10/17 10:52:08')).rows, 1);
+  const wb = XLSX.read(W.appendRows(XLSX, P, null, cards).bytes, { type: 'array', cellStyles: true });
+  wb.Sheets['202610']['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));
+  const other = XLSX.utils.aoa_to_sheet([['notes']]);
+  other['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));
+  XLSX.utils.book_append_sheet(wb, other, '說明');
+  const bytes = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }));
+  for (const out of [W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師']])).bytes,
+    W.setNotes(XLSX, bytes, new Map([['1151001', W.MARKED]])).bytes]) {
+    const book = XLSX.read(out, { type: 'array', cellStyles: true });
+    assert.ok(book.Sheets['202610']['!cols'].length <= 11, `kept ${book.Sheets['202610']['!cols'].length} column entries`);
+    assert.ok(out.length < 30000, `file is ${out.length} bytes`);
+  }
+  assert.equal(XLSX.read(W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師']])).bytes, { type: 'array' }).Sheets['202610'].J2.v, '王藥師');
+});

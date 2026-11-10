@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2f6f73">
-  <link rel="stylesheet" href="style.css?v=20261110c">
+  <link rel="stylesheet" href="style.css?v=20261110d">
 </head>
 <body>
   <header class="no-print">
@@ -44,7 +44,10 @@
             <tbody id="statusRows"></tbody>
           </table>
         </div>
-        <p id="writerStatus" class="hint writer-status"></p>
+        <div class="writer-bar">
+          <button id="saveWritersBtn" type="button" disabled>儲存撰寫人</button>
+          <p id="writerStatus" class="hint writer-status"></p>
+        </div>
         <p id="statusEmpty" class="hint" hidden>這個月還沒有案例。</p>
       </details>
     </section>
@@ -86,10 +89,10 @@
 
   <script src="lib/xlsx.full.min.js?v=20261030"></script>
   <script src="parse.js?v=20261110"></script>
-  <script src="workbook.js?v=20261110"></script>
+  <script src="workbook.js?v=20261110b"></script>
   <script src="pdf.js?v=20261030"></script>
   <script src="dropdown.js?v=20261110b"></script>
   <script src="local.js?v=20261110"></script>
-  <script src="app.js?v=20261110e"></script>
+  <script src="app.js?v=20261110g"></script>
 </body>
 </html>

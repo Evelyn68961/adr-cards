@@ -57,11 +57,11 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
   **值得注意** (ticked on the 案例總覽 page).
-- **撰寫人** (who writes up the case) is typed or pasted into the box in the 本月案例清單 table and
-  saved to column J when you press Enter or leave the box; clearing the box clears it. Saves only rewrite
+- **撰寫人** (who writes up the case) is typed or pasted into the boxes in the 本月案例清單 table
+  (unsaved ones turn yellow), then saved to column J with **儲存撰寫人** (or Enter); an empty box
+  clears it. The page says whether it worked; if not, the names stay in the boxes to try again. Saves only rewrite
   columns A–I, so a case keeps its 撰寫人 when overwritten, except when a different case takes
-  over its 識別碼. If the workbook is open in Excel, the name is kept on the page and saved
-  automatically (retried every few seconds) once Excel is closed.
+  over its 識別碼.
 - With the desktop shortcut, the previous workbook is copied to `backups\` in this folder
   (latest 30) before each write; nothing extra is put in the ADR folder.
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.
