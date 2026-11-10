@@ -96,7 +96,7 @@ button:disabled { opacity: .4; cursor: default; }
 .status-list th { color: var(--muted); font-weight: 600; }
 .card-done { color: var(--ok-text); }
 .card-missing { color: var(--warn-text); font-weight: 600; }
-.status-list td .writer { min-width: 7.5em; font: inherit; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); cursor: pointer; }
+.status-list td .writer { min-width: 7.5em; font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); cursor: pointer; text-align: left; white-space: nowrap; }
 .status-list td .writer.empty { border-style: dashed; color: var(--muted); }
 .writer-status { margin: 8px 0 0; }
 

@@ -583,32 +583,27 @@
     return [...new Set(all.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   }
 
-  // A dropdown, so a name is one click (no typing, no Chinese input-method
-  // mishaps); 「＋ 新增…」 asks for a name not used before. dropdown.js draws
-  // the list, since Chrome's own one can crash the page on some PCs.
+  // A button that opens a list of names (dropdown.js), so a name is one
+  // click with no typing; 「＋ 新增…」 asks for a new name inside the list.
+  // Not a <select>: Chrome's own dropdown list crashes the page on some PCs.
   function writerCell(r) {
     const td = document.createElement('td');
     if (!r.id) return td;
     const current = writerOf(r);
-    const select = document.createElement('select');
-    select.className = 'writer' + (current ? '' : ' empty');
-    select.setAttribute('aria-label', `${r.id} 撰寫人`);
-    const option = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
-    const names = writerNames();
-    if (current && !names.includes(current)) names.push(current);
-    const add = option(NEW_WRITER, '＋ 新增…');
-    add.dataset.ask = '輸入撰寫人姓名';  // asked inside the list (dropdown.js)
-    select.append(option('', '未指定'), ...names.map(n => option(n, n)), add);
-    select.value = current;
-    select.addEventListener('change', () => {
-      if (select.value === NEW_WRITER) { select.value = current; return; }
-      select.blur();
-      setWriter(r.id, select.value);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'writer' + (current ? '' : ' empty');
+    button.setAttribute('aria-label', `${r.id} 撰寫人`);
+    button.textContent = (current || '未指定') + ' ▾';
+    button.addEventListener('click', async () => {
+      const items = [{ value: '', text: '未指定' }, ...writerNames().map(n => ({ value: n, text: n })),
+        { text: '＋ 新增…', ask: '輸入撰寫人姓名' }];
+      const name = await window.ADRDropdown.pick(button, items, current);
+      if (name != null && name !== current) setWriter(r.id, name);
     });
-    td.appendChild(select);
+    td.appendChild(button);
     return td;
   }
-  const NEW_WRITER = '\u0000new';
 
   function setWriter(id, name) {
     pendingWriters.set(id, name);
