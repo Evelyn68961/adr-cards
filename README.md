@@ -57,11 +57,11 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
   **值得注意** (ticked on the 案例總覽 page).
-- **撰寫人** (who writes up the case) is typed in the 本月案例清單 table (names used before are
-  suggested) and saved to column J automatically; clearing the box clears it. Saves only rewrite
+- **撰寫人** (who writes up the case) is picked from a dropdown in the 本月案例清單 table (names
+  used before; 「＋ 新增…」 for a new one; 未指定 clears it) and saved to column J automatically. Saves only rewrite
   columns A–I, so a case keeps its 撰寫人 when overwritten, except when a different case takes
-  over its 識別碼. If the workbook is open in Excel, the name is kept on the page and saved when
-  you come back to it after closing Excel.
+  over its 識別碼. If the workbook is open in Excel, the name is kept on the page and saved
+  automatically (retried every few seconds) once Excel is closed.
 - With the desktop shortcut, the previous workbook is copied to `backups\` in this folder
   (latest 30) before each write; nothing extra is put in the ADR folder.
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.
@@ -70,6 +70,14 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
   holds replaces it. Its row takes the place of the first row with that number, every other row
   with that number is removed, and its card image replaces the old one. The page warns which
   case will be replaced before you save.
+- **Replacing an unreportable case:** click the 識別碼 on a card and type the number of the case
+  to replace (Enter or click away). The card shows 指定識別碼 and keeps that number through
+  re-syncs; clear it to go back to automatic numbering. On save the card's case takes over the
+  number: its row replaces the old case's row (in any month's sheet) and its image replaces
+  `ADR_<識別碼>.png`. This also works for a case already in Excel under another number: it keeps
+  its own row (and 撰寫人), the old number is left free and its `ADR_<old>.png` is deleted. Other
+  new cases pasted with it are numbered around the typed number. The page lists what will be
+  replaced before you save.
 - If two Excel rows carry the same 識別碼 (left over from older versions), the first keeps it and
   the later one gets a new number the next time it is pasted and saved without a typed number.
 - Rewriting uses SheetJS, which keeps values, number formats and column widths but may drop

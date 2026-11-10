@@ -192,22 +192,30 @@
   // holds keep their number (`ledger.idFor`, marked `recorded`). `startSeq`, when
   // given, applies to the earliest month with new cases; every other month
   // continues from `ledger.nextSeq(key)`, or 1 without a ledger.
-  function assignIds(rows, startSeq, ledger) {
+  // `fixed` (Map rowKey -> 識別碼) holds numbers typed on a card: that case
+  // takes the number (marked `fixed`; `previousId` is its number in Excel, if
+  // any), and automatic numbering skips it.
+  function assignIds(rows, startSeq, ledger, fixed = new Map()) {
     const sorted = rows.slice().sort((a, b) => a.date - b.date);
     const known = r => (ledger ? ledger.idFor(r) : null);
-    const firstNew = sorted.find(r => !known(r));
+    const fixedOf = r => fixed.get(rowKey(r.chartNo, r.drugCode, r.date));
+    const taken = new Set(sorted.map(fixedOf).filter(Boolean));
+    const firstNew = sorted.find(r => !known(r) && !fixedOf(r));
     const firstKey = firstNew ? monthKey(firstNew.date) : null;
     const counters = {};
     return sorted.map(r => {
       const id = known(r);
+      const own = fixedOf(r);
+      if (own) return Object.assign({}, r, { id: own, fixed: true, recorded: !!id, previousId: id || null });
       if (id) return Object.assign({}, r, { id, recorded: true });
       const key = monthKey(r.date);
       if (!(key in counters)) {
         counters[key] = key === firstKey && startSeq ? Math.max(1, startSeq | 0)
           : ledger ? ledger.nextSeq(key) : 1;
       }
-      const seq = counters[key]++;
-      return Object.assign({}, r, { id: key + String(seq).padStart(2, '0') });
+      let next;
+      do next = key + String(counters[key]++).padStart(2, '0'); while (taken.has(next));
+      return Object.assign({}, r, { id: next });
     });
   }
 

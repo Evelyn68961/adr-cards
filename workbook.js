@@ -110,6 +110,9 @@
   // alone (`duplicates`). A new case (not `recorded`) whose 識別碼 is already in
   // the sheet takes that number over: it is written in place of the first row
   // holding it, and any other row holding it is removed. Others are appended.
+  // A case given a number by hand (`fixed`) takes it over the same way, also
+  // when it is already in the workbook under another number (it keeps its own
+  // row, and the row that held the number is removed), and in any month sheet.
   function appendRows(XLSX, P, bytes, rows) {
     const wb = bytes ? load(XLSX, bytes) : XLSX.utils.book_new();
     const added = [];
@@ -140,7 +143,7 @@
       const drop = new Set();
       sheetRows.forEach(r => {
         const key = P.rowKey(r.chartNo, r.drugCode, r.date);
-        const holders = r.recorded || !r.id ? [] : (byId.get(r.id) || []);
+        const holders = (r.recorded && !r.fixed) || !r.id ? [] : (byId.get(r.id) || []);
         const at = byKey.has(key) ? byKey.get(key) : holders[0];
         holders.forEach(i => { if (i !== at) drop.add(i); });
         // A row taken over from another case does not keep that case's 撰寫人 or mark.
@@ -171,6 +174,20 @@
         deleteRow(XLSX, ws, i + base);
       });
     }
+
+    // A number typed by hand takes over rows holding it in other months' sheets too.
+    rows.filter(r => r.fixed && r.id).forEach(r => {
+      const own = P.sheetName(r.date);
+      wb.SheetNames.filter(name => /^\d{6}$/.test(name) && name !== own).forEach(name => {
+        const ws = wb.Sheets[name];
+        const { aoa } = existingRows(XLSX, ws, P);
+        const base = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']).s.r : 0;
+        aoa.map((v, i) => i).filter(i => String(aoa[i][0]).trim() === r.id).reverse().forEach(i => {
+          removed.push({ sheet: name, values: aoa[i] });
+          deleteRow(XLSX, ws, i + base);
+        });
+      });
+    });
 
     // A "rest of the columns" width rule (e.g. I:XFD) is read back as 16,384
     // separate columns and would bloat the file ~80x; keep only used columns.

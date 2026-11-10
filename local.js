@@ -70,6 +70,10 @@
         if (!create && !await call('api/stat' + q(p))) throw notFound(p);
         return fileHandle(p, child);
       },
+      async removeEntry(child) {
+        const p = join(path, child);
+        if (!await call('api/file' + q(p), { method: 'DELETE' })) throw notFound(p);
+      },
       async *keys() {
         const res = await call('api/list' + q(path));
         for (const n of res ? await res.json() : []) yield n;

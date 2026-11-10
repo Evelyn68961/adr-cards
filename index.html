@@ -43,7 +43,6 @@
             <thead><tr><th>識別碼</th><th>病歷號</th><th>藥品</th><th>症狀</th><th>得知日期</th><th>卡片</th><th>撰寫人</th></tr></thead>
             <tbody id="statusRows"></tbody>
           </table>
-          <datalist id="writerNames"></datalist>
         </div>
         <p id="writerStatus" class="hint writer-status"></p>
         <p id="statusEmpty" class="hint" hidden>這個月還沒有案例。</p>
@@ -66,7 +65,7 @@
 
     <section class="panel">
       <div class="step-row">
-        <span class="step">2. 勾選要列印的卡片（點文字可修改）</span>
+        <span class="step">2. 勾選要列印的卡片（點文字可修改；把識別碼改成 Excel 中不可通報案例的號碼，即可用本卡取代它）</span>
         <span class="actions">
           <button id="saveBtn" type="button" disabled title="所有貼上的個案都會存入，不受勾選影響">存入 Excel 與 PNG（全部）</button>
           <button id="pngBtn" type="button" class="secondary" disabled>下載 PNG</button>
@@ -86,10 +85,10 @@
   <div id="printArea" class="print-area"></div>
 
   <script src="lib/xlsx.full.min.js?v=20261030"></script>
-  <script src="parse.js?v=20261104"></script>
-  <script src="workbook.js?v=20261106"></script>
+  <script src="parse.js?v=20261110"></script>
+  <script src="workbook.js?v=20261110"></script>
   <script src="pdf.js?v=20261030"></script>
-  <script src="local.js?v=20261106"></script>
-  <script src="app.js?v=20261104"></script>
+  <script src="local.js?v=20261110"></script>
+  <script src="app.js?v=20261110"></script>
 </body>
 </html>

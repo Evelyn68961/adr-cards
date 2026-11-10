@@ -9,6 +9,7 @@ Each start first updates this folder from GitHub (see update()).
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -150,6 +151,24 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(403, 'forbidden')
         self.reply(200)
         threading.Thread(target=self.server.shutdown, daemon=True).start()
+
+    def do_DELETE(self):
+        # Only card images: a case that moved to another 識別碼 leaves its old one.
+        url = urllib.parse.urlsplit(self.path)
+        if url.path != '/api/file' or not self.allowed():
+            return self.reply(403, 'forbidden')
+        try:
+            path = self.target(url.query)
+            if not re.fullmatch(r'ADR_\d{7}\.png', os.path.basename(path), re.I):
+                return self.reply(403, 'only card images can be deleted')
+            if not os.path.isfile(path):
+                return self.reply(404)
+            os.remove(path)
+            return self.reply(200)
+        except PermissionError:
+            return self.reply(409, '檔案被其他程式開啟中')
+        except Exception as e:
+            return self.reply(500, f'{type(e).__name__}: {e}')
 
     def do_PUT(self):
         url = urllib.parse.urlsplit(self.path)

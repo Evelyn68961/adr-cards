@@ -182,3 +182,41 @@ test('assignIds keeps recorded numbers and continues from the ledger', () => {
   // A typed start number applies to the first month with new cases.
   assert.deepEqual(P.assignIds(rows, 20, ledger).map(c => c.id), ['1151006', '1151020', '1151101']);
 });
+
+test('a 識別碼 typed on a card replaces an unreportable case, also for a case already in Excel', () => {
+  // 1151101 (case 1) turned out unreportable; case 2 is 1151102.
+  const cards = P.assignIds(P.parseText([row(1, '2026/11/02 11:50:00'), row(2, '2026/11/03 14:57:00')].join('\n')).rows, 1);
+  let bytes = W.appendRows(XLSX, P, null, cards).bytes;
+  bytes = W.setWriters(XLSX, bytes, new Map([['1151102', '王藥師']])).bytes;
+  const ledger = W.readLedger(XLSX, P, bytes);
+  const pasted = P.parseText([row(2, '2026/11/03 14:57:00'), row(3, '2026/11/04 09:00:00')].join('\n')).rows;
+  // Case 2 (in Excel as 1151102) is given 1151101 by hand; new case 3 is numbered automatically.
+  const fixed = new Map([[P.rowKey('000000002Z', 'CEL01', pasted[0].date), '1151101']]);
+  const out = P.assignIds(pasted, null, viewOf(ledger), fixed);
+  assert.deepEqual(out.map(c => [c.id, !!c.recorded, !!c.fixed, c.previousId || null]),
+    [['1151101', true, true, '1151102'], ['1151103', false, false, null]]);
+  const r = W.appendRows(XLSX, P, bytes, out);
+  assert.deepEqual(r.removed.map(d => d.values[1]), ['000000001Z']);
+  assert.deepEqual(sheet11(r.bytes), [['1151101', '000000002Z'], ['1151103', '000000003Z']]);
+  // The moved case keeps its 撰寫人.
+  const kept = XLSX.utils.sheet_to_json(XLSX.read(r.bytes, { type: 'array' }).Sheets['202611'], { header: 1 });
+  assert.equal(kept[1][9], '王藥師');
+});
+
+test('a typed 識別碼 skips automatic numbers and replaces a case in another month', () => {
+  // A new case is free to take 1151002 (unreportable, in October) and the
+  // October case pasted with it continues numbering without reusing 1151002.
+  const oct = P.assignIds(P.parseText([row(1, '2026/10/02 11:50:00'), row(2, '2026/10/03 14:57:00')].join('\n')).rows, 1);
+  const bytes = W.appendRows(XLSX, P, null, oct).bytes;
+  const ledger = W.readLedger(XLSX, P, bytes);
+  const view = { idFor: r => ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.date)) || null, nextSeq: k => (k === '11510' ? 3 : 1) };
+  const pasted = P.parseText([row(3, '2026/10/05 08:00:00'), row(4, '2026/11/01 08:00:00')].join('\n')).rows;
+  const fixed = new Map([[P.rowKey('000000004Z', 'CEL01', pasted[1].date), '1151002']]);
+  const out = P.assignIds(pasted, 3, view, fixed);
+  assert.deepEqual(out.map(c => c.id), ['1151003', '1151002']);
+  const r = W.appendRows(XLSX, P, bytes, out);
+  const book = XLSX.read(r.bytes, { type: 'array' });
+  const ids = name => XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1 }).slice(1).map(s => s[0]);
+  assert.deepEqual(ids('202610'), ['1151001', '1151003']);
+  assert.deepEqual(ids('202611'), ['1151002']);
+});

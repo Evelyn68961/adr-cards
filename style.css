@@ -96,8 +96,8 @@ button:disabled { opacity: .4; cursor: default; }
 .status-list th { color: var(--muted); font-weight: 600; }
 .card-done { color: var(--ok-text); }
 .card-missing { color: var(--warn-text); font-weight: 600; }
-.status-list td .writer { width: 7em; font: inherit; padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); }
-.status-list td .writer:placeholder-shown { border-style: dashed; }
+.status-list td .writer { min-width: 7.5em; font: inherit; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); cursor: pointer; }
+.status-list td .writer.empty { border-style: dashed; color: var(--muted); }
 .writer-status { margin: 8px 0 0; }
 
 .messages { list-style: none; margin: 10px 0 0; padding: 0; font-size: .9rem; }
@@ -128,6 +128,7 @@ button:disabled { opacity: .4; cursor: default; }
 }
 .card.excluded { opacity: .35; }
 .card .recorded { position: absolute; top: 3mm; right: 10mm; padding: 1px 8px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-text); font-size: 10pt; }
+.card .recorded.fixed { background: var(--warn-bg); color: var(--warn-text); }
 .card .include { position: absolute; top: 3mm; right: 3mm; width: 18px; height: 18px; }
 .field { display: flex; margin-bottom: 1.6mm; }
 .field .label { flex: none; white-space: pre; }

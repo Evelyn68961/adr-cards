@@ -26,17 +26,22 @@
   let ledger = null;          // what ADR通報.xlsx holds (see ADRWorkbook.readLedger)
   let pngs = {};              // month key -> Set of card file names on disk
   let shownMonth = null;      // month key picked in the status panel
+  // 識別碼 typed on a card (rowKey -> 識別碼): that case takes the number, e.g. to
+  // replace a case in Excel that turned out not to be reportable.
+  const fixedIds = new Map();
   let saving = false;
 
   // ---- Parsing and cards ----------------------------------------------------
 
   // Keeps ticks and hand edits for cases that are still in the list, and only
   // redraws when numbering changed, so a background sync never disturbs typing.
-  function rebuild() {
+  function rebuild(force = false) {
     const { rows, skipped } = P.parseText(pasteEl.value);
     const before = new Map(cards.map(c => [c.key, c]));
     const start = startTouched ? Number(startEl.value) || 1 : null;
-    const next = P.assignIds(rows, start, ledgerView()).map(c => {
+    const keys = new Set(rows.map(r => P.rowKey(r.chartNo, r.drugCode, r.date)));
+    [...fixedIds.keys()].filter(k => !keys.has(k)).forEach(k => fixedIds.delete(k));
+    const next = P.assignIds(rows, start, ledgerView(), fixedIds).map(c => {
       const key = P.rowKey(c.chartNo, c.drugCode, c.date);
       const old = before.get(key);
       const kept = old ? {
@@ -45,13 +50,13 @@
       } : { include: true, dateText: P.formatDate(c.date) };
       return Object.assign(c, { key }, kept);
     });
-    const signature = list => list.map(c => `${c.key}=${c.id}=${!!c.recorded}`).join();
-    if (signature(next) !== signature(cards)) {
+    const signature = list => list.map(c => `${c.key}=${c.id}=${!!c.recorded}=${c.previousId}`).join();
+    if (force || signature(next) !== signature(cards)) {
       cards = next;
       renderCards();
     }
     if (!startTouched) {
-      const first = cards.find(c => !c.recorded);
+      const first = cards.find(c => !c.recorded && !c.fixed);
       startEl.value = first ? Number(first.id.slice(5)) : ledger ? nextSeq(currentMonthKey()) : 1;
     }
     renderMessages(skipped);
@@ -80,22 +85,29 @@
     if (months.length > 1 && !ledger) {
       msgs.push({ cls: 'warn', text: `包含多個月份（${months.join('、')}）：起始流水號只套用於第一個月，其後月份從 01 開始。` });
     }
-    const fresh = cards.filter(c => !c.recorded);
-    const recorded = cards.length - fresh.length;
+    const fresh = cards.filter(c => !c.recorded && !c.fixed);
+    const recorded = cards.filter(c => c.recorded).length;
     if (cards.length) {
       msgs.unshift({ cls: 'ok', text: `共 ${cards.length} 張卡片，已依得知日期時間排序。` +
         (recorded ? `其中 ${recorded} 張已在 Excel，沿用原識別碼。` : '') });
     }
     if (ledger) {
       // A typed number already in Excel: this case replaces what holds it.
-      fresh.forEach(c => {
-        const rows = Object.values(ledger.months).flatMap(m => m.rows).filter(r => r.id === c.id);
+      const isSelf = (r, c) => r.chartNo === c.chartNo && r.date && r.date.getTime() === c.date.getTime();
+      cards.filter(c => !c.recorded || c.fixed).forEach(c => {
+        const rows = Object.values(ledger.months).flatMap(m => m.rows).filter(r => r.id === c.id && !isSelf(r, c));
         if (rows.length) {
           msgs.push({ cls: 'warn', text: `${c.id} 已在 Excel：儲存後將以本卡（${c.name} ${c.drug}）取代 ` +
-            rows.map(r => `${r.name} ${r.drug}`).join('、') + '。' });
+            rows.map(r => `${r.name} ${r.drug}`).join('、') + `，卡片圖檔 ADR_${c.id}.png 也會換成本卡。` });
         }
       });
     }
+    cards.filter(c => c.previousId && c.previousId !== c.id).forEach(c => {
+      msgs.push({ cls: 'warn', text: `${c.name} ${c.drug} 原為 ${c.previousId}，儲存後改為 ${c.id}；` +
+        `ADR_${c.previousId}.png 會刪除，${c.previousId} 空出來。` });
+    });
+    const dup = [...new Set(cards.map(c => c.id).filter((id, i, all) => all.indexOf(id) !== i))];
+    if (dup.length) msgs.push({ cls: 'warn', text: `識別碼重複：${dup.join('、')}。請修改其中一張卡片的識別碼，否則無法存入。` });
     if (ledger && startTouched && fresh.length) {
       const expected = nextSeq(fresh[0].id.slice(0, 5));
       if (Number(fresh[0].id.slice(5)) !== expected) {
@@ -125,10 +137,10 @@
       });
       el.appendChild(toggle);
 
-      if (card.recorded) {
+      if (card.recorded || card.fixed) {
         const badge = document.createElement('span');
-        badge.className = 'recorded no-print';
-        badge.textContent = '已在 Excel';
+        badge.className = 'recorded no-print' + (card.fixed ? ' fixed' : '');
+        badge.textContent = card.fixed ? '指定識別碼' : '已在 Excel';
         el.appendChild(badge);
       }
 
@@ -143,13 +155,36 @@
         value.contentEditable = 'plaintext-only';
         value.spellcheck = false;
         value.textContent = card[f.key];
-        value.addEventListener('input', () => { cards[i][f.key] = value.textContent.trim(); });
+        if (f.key === 'id') {
+          // A typed 識別碼 is kept through re-syncs; empty goes back to automatic.
+          value.title = '改成 Excel 中某案例的識別碼，可用本卡取代它（例如不可通報的案例）；清空恢復自動編號';
+          value.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); value.blur(); } });
+          value.addEventListener('blur', () => setFixedId(card, value.textContent));
+        } else {
+          value.addEventListener('input', () => { cards[i][f.key] = value.textContent.trim(); });
+        }
         row.append(label, value);
         el.appendChild(row);
       });
       return el;
     }));
     updateButtons();
+  }
+
+  function setFixedId(card, text) {
+    const id = text.trim();
+    if (id && !/^\d{7}$/.test(id)) {
+      alert('識別碼要是 7 位數字，例如 1151103。');
+      renderCards();
+      return;
+    }
+    if (!id) {
+      if (!fixedIds.delete(card.key)) { renderCards(); return; }
+    } else {
+      if (id === card.id) return;
+      fixedIds.set(card.key, id);
+    }
+    rebuild(true);
   }
 
   function selected() {
@@ -509,14 +544,12 @@
     $('statNext').textContent = shownMonth + String(nextSeq(shownMonth)).padStart(2, '0');
     $('statNoCard').textContent = `${noCard.length} 件`;
 
-    const names = [...new Set(Object.values(ledger.months).flatMap(m => m.rows.map(r => r.writer)).filter(Boolean))].sort();
-    $('writerNames').replaceChildren(...names.map(n => Object.assign(document.createElement('option'), { value: n })));
     const unassigned = rows.filter(r => r.id && !writerOf(r)).length;
     if (!writerSaving && !pendingWriters.size) {
       $('writerStatus').textContent = rows.length ? (unassigned ? `尚未指定撰寫人：${unassigned} 件` : '每個案例都已指定撰寫人') : '';
     }
     $('statusEmpty').hidden = rows.length > 0;
-    // Don't redraw the rows under someone typing a name.
+    // Don't redraw the rows under an open name dropdown.
     if ($('statusRows').contains(document.activeElement)) return;
 
     $('statusRows').replaceChildren(...rows.map(r => {
@@ -544,28 +577,53 @@
 
   const writerOf = r => (pendingWriters.has(r.id) ? pendingWriters.get(r.id) : r.writer);
 
+  // Names used before (in Excel or picked on this page), for the dropdown.
+  function writerNames() {
+    const all = Object.values(ledger.months).flatMap(m => m.rows.map(r => r.writer)).concat([...pendingWriters.values()]);
+    return [...new Set(all.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }
+
+  // A dropdown, so a name is one click (no typing, no Chinese input-method
+  // mishaps); 「＋ 新增…」 asks for a name not used before.
   function writerCell(r) {
     const td = document.createElement('td');
     if (!r.id) return td;
-    const input = document.createElement('input');
-    input.className = 'writer';
-    input.setAttribute('list', 'writerNames');
-    input.setAttribute('aria-label', `${r.id} 撰寫人`);
-    input.placeholder = '未指定';
-    input.value = writerOf(r);
-    input.addEventListener('change', () => {
-      pendingWriters.set(r.id, input.value.trim());
-      clearTimeout(writerTimer);
-      writerTimer = setTimeout(saveWriters, 800);
-      $('writerStatus').textContent = '儲存中…';
+    const current = writerOf(r);
+    const select = document.createElement('select');
+    select.className = 'writer' + (current ? '' : ' empty');
+    select.setAttribute('aria-label', `${r.id} 撰寫人`);
+    const option = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
+    const names = writerNames();
+    if (current && !names.includes(current)) names.push(current);
+    select.append(option('', '未指定'), ...names.map(n => option(n, n)), option(NEW_WRITER, '＋ 新增…'));
+    select.value = current;
+    select.addEventListener('change', () => {
+      let name = select.value;
+      if (name === NEW_WRITER) {
+        name = (prompt('撰寫人姓名') || '').trim();
+        if (!name) { select.value = current; return; }
+      }
+      select.blur();
+      setWriter(r.id, name);
     });
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
-    td.appendChild(input);
+    td.appendChild(select);
     return td;
   }
+  const NEW_WRITER = '\u0000new';
 
-  // Writes the queued names into ADR通報.xlsx in one go.
+  function setWriter(id, name) {
+    pendingWriters.set(id, name);
+    clearTimeout(writerTimer);
+    writerTimer = setTimeout(saveWriters, 500);
+    $('writerStatus').textContent = '儲存中…';
+    renderStatus();
+  }
+
+  // Writes the queued names into ADR通報.xlsx in one go. While Excel has the
+  // file open (Windows locks it), the names stay on the page and are retried
+  // every few seconds until Excel is closed.
   async function saveWriters() {
+    clearTimeout(writerTimer);
     if (!pendingWriters.size) return;
     if (saving || writerSaving) { writerTimer = setTimeout(saveWriters, 800); return; }
     writerSaving = true;
@@ -582,7 +640,10 @@
         : `撰寫人已存入 ${WORKBOOK_NAME}（${[...batch].map(([id, n]) => `${id}：${n || '清除'}`).join('、')}）`;
       result.missing.forEach(id => pendingWriters.delete(id));
     } catch (e) {
-      $('writerStatus').textContent = `撰寫人無法存入 ${WORKBOOK_NAME}（若檔案在 Excel 中開著，請先關閉）：${e.message}。回到此頁時會自動再試。`;
+      const locked = /開啟中|Excel|NoModification|InvalidState|lock/i.test(e.name + ' ' + e.message);
+      $('writerStatus').textContent = `已記下 ${pendingWriters.size} 位撰寫人，尚未存入 ${WORKBOOK_NAME}：` +
+        (locked ? '檔案正在 Excel 中開著，關閉 Excel 後會自動存入。' : `${e.message}。稍後會自動再試。`);
+      writerTimer = setTimeout(saveWriters, 5000);
     } finally {
       writerSaving = false;
     }
@@ -624,6 +685,9 @@
       if (await folder.requestPermission({ mode: 'readwrite' }) !== 'granted') {
         throw new Error('沒有資料夾寫入權限');
       }
+      const ids = cards.map(c => c.id);
+      const dup = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
+      if (dup.length) throw new Error(`識別碼重複：${dup.join('、')}。請先修改卡片上的識別碼。`);
 
       // 1. Excel: append new cases, overwrite the ones already there.
       const fileHandle = await existingFile(folder, WORKBOOK_NAME);
@@ -662,6 +726,21 @@
       }
       if (saved.length) msgs.push({ cls: 'ok', text: `已儲存 ${saved.length} 張卡片圖檔：${saved.join('、')}` });
       if (replaced.length) msgs.push({ cls: 'ok', text: `已覆寫 ${replaced.length} 張卡片圖檔：${replaced.join('、')}` });
+
+      // 3. A case moved to another number leaves its old image behind: remove it.
+      const gone = [];
+      for (const card of cards.filter(c => c.previousId && !ids.includes(c.previousId))) {
+        const name = `ADR_${card.previousId}.png`;
+        const dir = await subfolder('ADR_' + card.previousId.slice(0, 5), false);
+        try {
+          if (dir && await existingFile(dir, name)) { await dir.removeEntry(name); gone.push(name); }
+        } catch (e) {
+          msgs.push({ cls: 'warn', text: `無法刪除 ${name}，請自行刪除：${e.message}` });
+        }
+      }
+      if (gone.length) msgs.push({ cls: 'ok', text: `已刪除改號案例的舊圖檔：${gone.join('、')}` });
+      // Saved: the numbers are in Excel now, so the cards follow Excel again.
+      fixedIds.clear();
     } catch (e) {
       msgs.push({ cls: 'warn', text: e.message });
     } finally {
