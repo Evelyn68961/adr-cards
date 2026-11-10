@@ -108,6 +108,7 @@ button:disabled { opacity: .4; cursor: default; }
 .messages li { padding: 6px 10px; border-radius: 6px; margin-top: 4px; }
 .messages .warn { background: var(--warn-bg); color: var(--warn-text); }
 .messages .ok { background: var(--ok-bg); color: var(--ok-text); }
+.messages .msg-action { margin-left: 6px; padding: 3px 14px; font-weight: 600; background: #b26a00; border-color: #b26a00; }
 
 /* Screen preview grid; printed size is set under @media print. */
 .sheet {

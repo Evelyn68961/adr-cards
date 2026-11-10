@@ -67,7 +67,8 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 - If `ADR通報.xlsx` is open in Excel, Windows locks it: close it and save again.
 - Card PNGs are always written as the card is now, replacing an older image of the same 識別碼.
 - A typed 起始流水號 means "this case is that number": a new case given a 識別碼 that Excel already
-  holds replaces it. Its row takes the place of the first row with that number, every other row
+  holds replaces it (the orange message names the case it replaces and has a **取代並存入**
+  button that saves right away). Its row takes the place of the first row with that number, every other row
   with that number is removed, and its card image replaces the old one. The page warns which
   case will be replaced before you save.
 - **Replacing an unreportable case:** click the 識別碼 on a card and type the number of the case

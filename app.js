@@ -75,11 +75,23 @@
         a.textContent = '下載';
         li.append(' ', a);
       }
+      if (m.action) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'msg-action';
+        b.textContent = m.action.label;
+        b.disabled = saving;
+        b.addEventListener('click', m.action.run);
+        li.append(' ', b);
+      }
       return li;
     }));
   }
 
+  let replacingIds = [];   // 識別碼 that saving will take over from other cases
+
   function renderMessages(skipped) {
+    replacingIds = [];
     const msgs = skipped.map(s => ({ cls: 'warn', text: `第 ${s.line} 行略過：${s.reason}` }));
     const months = [...new Set(cards.map(c => c.id.slice(0, 5)))];
     if (months.length > 1 && !ledger) {
@@ -94,13 +106,20 @@
     if (ledger) {
       // A typed number already in Excel: this case replaces what holds it.
       const isSelf = (r, c) => r.chartNo === c.chartNo && r.date && r.date.getTime() === c.date.getTime();
+      const replacing = [];
       cards.filter(c => !c.recorded || c.fixed).forEach(c => {
         const rows = Object.values(ledger.months).flatMap(m => m.rows).filter(r => r.id === c.id && !isSelf(r, c));
         if (rows.length) {
-          msgs.push({ cls: 'warn', text: `${c.id} 已在 Excel：儲存後將以本卡（${c.name} ${c.drug}）取代 ` +
+          replacing.push(c.id);
+          msgs.push({ cls: 'warn', text: `${c.id} 已在 Excel：按「取代並存入」後，以本卡（${c.name} ${c.drug}）取代 ` +
             rows.map(r => `${r.name} ${r.drug}`).join('、') + `，卡片圖檔 ADR_${c.id}.png 也會換成本卡。` });
         }
       });
+      // The replacing happens on save; offer it right here.
+      if (replacing.length) {
+        msgs[msgs.length - 1].action = { label: replacing.length > 1 ? `取代並存入（${replacing.length} 件）` : '取代並存入', run: saveToFolder };
+      }
+      replacingIds = replacing;
     }
     cards.filter(c => c.previousId && c.previousId !== c.id).forEach(c => {
       msgs.push({ cls: 'warn', text: `${c.name} ${c.drug} 原為 ${c.previousId}，儲存後改為 ${c.id}；` +
@@ -108,7 +127,8 @@
     });
     const dup = [...new Set(cards.map(c => c.id).filter((id, i, all) => all.indexOf(id) !== i))];
     if (dup.length) msgs.push({ cls: 'warn', text: `識別碼重複：${dup.join('、')}。請修改其中一張卡片的識別碼，否則無法存入。` });
-    if (ledger && startTouched && fresh.length) {
+    // Not when the typed number is meant to replace a case already in Excel.
+    if (ledger && startTouched && fresh.length && !replacingIds.includes(fresh[0].id)) {
       const expected = nextSeq(fresh[0].id.slice(0, 5));
       if (Number(fresh[0].id.slice(5)) !== expected) {
         msgs.push({ cls: 'warn', text: `Excel 的下一號是 ${fresh[0].id.slice(0, 5)}${String(expected).padStart(2, '0')}，您輸入的起始流水號與它不同。` });
@@ -675,11 +695,19 @@
     });
   }
 
+  let saveRequested = false;
+
   async function saveToFolder() {
     // One click: link if needed, then re-sync with Excel so the numbers are
     // current (unless the user typed a start number) before writing anything.
-    if (!folder && !await linkFolder()) return;
-    await refreshLedger();
+    if (saveRequested) return;  // a second click while saving
+    saveRequested = true;
+    try {
+      if (!folder && !await linkFolder()) return;
+      await refreshLedger();
+    } finally {
+      saveRequested = false;
+    }
     const btn = $('saveBtn');
     const msgs = [];
     saving = true;
