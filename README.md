@@ -57,8 +57,8 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
   **值得注意** (ticked on the 案例總覽 page).
-- **撰寫人** (who writes up the case) is picked from a dropdown in the 本月案例清單 table (names
-  used before; 「＋ 新增…」 for a new one; 未指定 clears it) and saved to column J automatically. Saves only rewrite
+- **撰寫人** (who writes up the case) is typed or pasted into the box in the 本月案例清單 table and
+  saved to column J when you press Enter or leave the box; clearing the box clears it. Saves only rewrite
   columns A–I, so a case keeps its 撰寫人 when overwritten, except when a different case takes
   over its 識別碼. If the workbook is open in Excel, the name is kept on the page and saved
   automatically (retried every few seconds) once Excel is closed.

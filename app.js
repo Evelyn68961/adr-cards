@@ -577,31 +577,28 @@
 
   const writerOf = r => (pendingWriters.has(r.id) ? pendingWriters.get(r.id) : r.writer);
 
-  // Names used before (in Excel or picked on this page), for the dropdown.
-  function writerNames() {
-    const all = Object.values(ledger.months).flatMap(m => m.rows.map(r => r.writer)).concat([...pendingWriters.values()]);
-    return [...new Set(all.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  }
-
-  // A button that opens a list of names (dropdown.js), so a name is one
-  // click with no typing; 「＋ 新增…」 asks for a new name inside the list.
-  // Not a <select>: Chrome's own dropdown list crashes the page on some PCs.
+  // A plain text box: type or paste the name; it is saved when you leave the
+  // box or press Enter. No suggestion list (Chrome's own lists crashed the
+  // page on some PCs).
   function writerCell(r) {
     const td = document.createElement('td');
     if (!r.id) return td;
-    const current = writerOf(r);
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'writer' + (current ? '' : ' empty');
-    button.setAttribute('aria-label', `${r.id} 撰寫人`);
-    button.textContent = (current || '未指定') + ' ▾';
-    button.addEventListener('click', async () => {
-      const items = [{ value: '', text: '未指定' }, ...writerNames().map(n => ({ value: n, text: n })),
-        { text: '＋ 新增…', ask: '輸入撰寫人姓名' }];
-      const name = await window.ADRDropdown.pick(button, items, current);
-      if (name != null && name !== current) setWriter(r.id, name);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'writer';
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', `${r.id} 撰寫人`);
+    input.placeholder = '未指定';
+    input.value = writerOf(r);
+    input.addEventListener('change', () => {
+      const name = input.value.trim();
+      if (name !== writerOf(r)) setWriter(r.id, name);
     });
-    td.appendChild(button);
+    // Enter that picks a character in a Chinese input method is not "done".
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) input.blur();
+    });
+    td.appendChild(input);
     return td;
   }
 
@@ -634,9 +631,9 @@
         : `撰寫人已存入 ${WORKBOOK_NAME}（${[...batch].map(([id, n]) => `${id}：${n || '清除'}`).join('、')}）`;
       result.missing.forEach(id => pendingWriters.delete(id));
     } catch (e) {
-      const locked = /開啟中|Excel|NoModification|InvalidState|lock/i.test(e.name + ' ' + e.message);
-      $('writerStatus').textContent = `已記下 ${pendingWriters.size} 位撰寫人，尚未存入 ${WORKBOOK_NAME}：` +
-        (locked ? '檔案正在 Excel 中開著，關閉 Excel 後會自動存入。' : `${e.message}。稍後會自動再試。`);
+      // Usually Excel has the file open; never alarming, it retries by itself.
+      $('writerStatus').textContent = `已記下 ${pendingWriters.size} 位撰寫人，${WORKBOOK_NAME} 可以寫入時（例如關閉 Excel 後）會自動存入。`;
+      console.warn('撰寫人 not saved yet:', e);
       writerTimer = setTimeout(saveWriters, 5000);
     } finally {
       writerSaving = false;
