@@ -128,6 +128,18 @@
     return cells.map(c => c.replace(/\s*\n\s*/g, ' ').trim());
   }
 
+  // 得知日期 from the date columns in priority order (登記日, then
+  // 最後異動時間). HIS sometimes keeps a 登記日 from years before (an old
+  // record edited again): one more than STALE_DAYS before 最後異動時間 is
+  // ignored and returned as `oldDate`, so the page can say so.
+  const STALE_DAYS = 31;
+  function pickDate(dates) {
+    const found = dates.filter(Boolean);
+    const [first, last] = [found[0], found[found.length - 1]];
+    if (found.length > 1 && last - first > STALE_DAYS * 86400000) return { date: last, oldDate: first };
+    return { date: first || null, oldDate: null };
+  }
+
   // Returns { rows, skipped }. Rows keep every field the Excel sheet needs;
   // the card only shows a subset. Records that have a chart number but fail
   // to parse are reported in `skipped`.
@@ -145,7 +157,7 @@
       const cells = splitCells(rec.text, width);
       const cols = header ? header.cols : LAYOUTS[width];
       const get = key => (key in cols ? cells[cols[key]] || '' : '');
-      const date = cols.date.map(i => parseDate(cells[i])).find(Boolean);
+      const { date, oldDate } = pickDate(cols.date.map(i => parseDate(cells[i])));
       if (!date) { skipped.push({ line: rec.line, reason: '無法辨識得知日期' }); return; }
       rows.push({
         chartNo: get('chartNo').toUpperCase(),
@@ -156,6 +168,7 @@
         source: get('source'),
         symptomRaw: get('symptom'),
         date,
+        oldDate,
         drug: cleanDrug(get('drug')),
         symptom: cleanSymptom(get('symptom')),
       });

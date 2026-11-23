@@ -133,6 +133,7 @@
     const updated = [];
     const duplicates = [];
     const removed = [];
+    const removedSheets = [];
     const bySheet = new Map();
     rows.slice().sort((a, b) => a.date - b.date).forEach(r => {
       const name = P.sheetName(r.date);
@@ -189,6 +190,30 @@
       });
     }
 
+    const emptied = new Set();
+    // A case saved before under a stale 登記日 (`staleId`, see parse.pickDate)
+    // is now saved under its real date: remove that old row, wherever it is.
+    rows.filter(r => r.staleId && r.staleId !== r.id).forEach(r => {
+      wb.SheetNames.filter(name => /^\d{6}$/.test(name)).forEach(name => {
+        const ws = wb.Sheets[name];
+        const { aoa } = existingRows(XLSX, ws, P);
+        const base = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']).s.r : 0;
+        aoa.map((v, i) => i).filter(i => String(aoa[i][0]).trim() === r.staleId &&
+          String(aoa[i][1]).trim().toUpperCase() === r.chartNo).reverse().forEach(i => {
+          removed.push({ sheet: name, values: aoa[i] });
+          deleteRow(XLSX, ws, i + base);
+          emptied.add(name);
+        });
+      });
+    });
+    // A month sheet that only held such a copy (e.g. 201609) goes too.
+    emptied.forEach(name => {
+      if (existingRows(XLSX, wb.Sheets[name], P).aoa.some(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()))) return;
+      delete wb.Sheets[name];
+      wb.SheetNames.splice(wb.SheetNames.indexOf(name), 1);
+      removedSheets.push(name);
+    });
+
     // A number typed by hand takes over rows holding it in other months' sheets too.
     rows.filter(r => r.fixed && r.id).forEach(r => {
       const own = P.sheetName(r.date);
@@ -204,7 +229,7 @@
     });
 
     const out = added.length || updated.length || removed.length ? save(XLSX, wb) : bytes;
-    return { bytes: out, added, updated, duplicates, removed };
+    return { bytes: out, added, updated, duplicates, removed, removedSheets };
   }
 
   // Sets one extra column (after the A–I case columns) for cases by 識別碼:

@@ -48,9 +48,11 @@
         include: old.include, chartNo: old.chartNo, dateText: old.dateText,
         source: old.source, drug: old.drug, symptom: old.symptom,
       } : { include: true, dateText: P.formatDate(c.date) };
-      return Object.assign(c, { key }, kept);
+      // Saved before under a stale 登記日: that copy is removed on save.
+      const staleId = c.oldDate && ledger ? ledger.ids.get(P.rowKey(c.chartNo, c.drugCode, c.oldDate)) || null : null;
+      return Object.assign(c, { key, staleId }, kept);
     });
-    const signature = list => list.map(c => `${c.key}=${c.id}=${!!c.recorded}=${c.previousId}`).join();
+    const signature = list => list.map(c => `${c.key}=${c.id}=${!!c.recorded}=${c.previousId}=${c.staleId}`).join();
     if (force || signature(next) !== signature(cards)) {
       cards = next;
       renderCards();
@@ -121,6 +123,11 @@
       }
       replacingIds = replacing;
     }
+    cards.filter(c => c.oldDate).forEach(c => {
+      msgs.push({ cls: 'warn', text: `${c.id} ${c.name}：HIS 的登記日 ${P.formatDate(c.oldDate)} 比最後異動時間早很多（舊紀錄），` +
+        `得知日期改用最後異動時間 ${P.formatDate(c.date)}。` +
+        (c.staleId && c.staleId !== c.id ? `之前用舊日期存成的 ${c.staleId} 和 ADR_${c.staleId}.png，存入時會刪除。` : '') });
+    });
     cards.filter(c => c.previousId && c.previousId !== c.id).forEach(c => {
       msgs.push({ cls: 'warn', text: `${c.name} ${c.drug} 原為 ${c.previousId}，儲存後改為 ${c.id}；` +
         `ADR_${c.previousId}.png 會刪除，${c.previousId} 空出來。` });
@@ -738,6 +745,9 @@
         if (result.updated.length) {
           msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：覆寫 ${result.updated.length} 列：${result.updated.map(u => u.row.id).join('、')}` });
         }
+        if (result.removedSheets.length) {
+          msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：刪除已空的工作表 ${result.removedSheets.join('、')}` });
+        }
         if (result.removed.length) {
           msgs.push({ cls: 'ok', text: `${WORKBOOK_NAME}：刪除被取代的 ${result.removed.length} 列：` +
             result.removed.map(d => `${d.values[0]} ${d.values[2]} ${P.cleanDrug(d.values[4])}`).join('、') });
@@ -761,16 +771,17 @@
 
       // 3. A case moved to another number leaves its old image behind: remove it.
       const gone = [];
-      for (const card of cards.filter(c => c.previousId && !ids.includes(c.previousId))) {
-        const name = `ADR_${card.previousId}.png`;
-        const dir = await subfolder('ADR_' + card.previousId.slice(0, 5), false);
+      const leftBehind = cards.flatMap(c => [c.previousId, c.staleId]).filter(id => id && !ids.includes(id));
+      for (const oldId of [...new Set(leftBehind)]) {
+        const name = `ADR_${oldId}.png`;
+        const dir = await subfolder('ADR_' + oldId.slice(0, 5), false);
         try {
           if (dir && await existingFile(dir, name)) { await dir.removeEntry(name); gone.push(name); }
         } catch (e) {
           msgs.push({ cls: 'warn', text: `無法刪除 ${name}，請自行刪除：${e.message}` });
         }
       }
-      if (gone.length) msgs.push({ cls: 'ok', text: `已刪除改號案例的舊圖檔：${gone.join('、')}` });
+      if (gone.length) msgs.push({ cls: 'ok', text: `已刪除舊的卡片圖檔：${gone.join('、')}` });
       // Saved: the numbers are in Excel now, so the cards follow Excel again.
       fixedIds.clear();
     } catch (e) {

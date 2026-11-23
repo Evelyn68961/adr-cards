@@ -156,3 +156,19 @@ test('sheet header starting with 識別碼 is recognised', () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].symptom, 'Rash');
 });
+
+// An old HIS record edited again: 登記日 is years before 最後異動時間.
+const OLD_REC = '000000777J\t王小美\tCOD02\tCodeine 針 管三 15 mg/Amp\tR05DA04\t480800\t鎮咳劑\t0_不明\t病人/家屬自述\t0_藥物不良反應\t2016/09/21\tUrticaria\t\t\tB00000\t陳藥師\t2026/11/17 21:31:20';
+
+test('a 登記日 far older than 最後異動時間 is ignored', () => {
+  for (const text of [OLD_REC, [HIS_HEADER, OLD_REC].join('\n')]) {
+    const [r] = P.parseText(text).rows;
+    assert.equal(P.formatDateTime(r.date), '2026/11/17 21:31:20');
+    assert.equal(P.formatDate(r.oldDate), '2016/9/21');
+    assert.equal(P.assignIds([r], 10)[0].id, '1151110');
+  }
+  // A 登記日 a few days before (the usual case) is still used.
+  const [tb] = P.parseText(TB_ROWS[0]).rows;
+  assert.equal(P.formatDate(tb.date), '2026/10/26');
+  assert.equal(tb.oldDate, null);
+});

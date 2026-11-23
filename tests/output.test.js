@@ -239,3 +239,23 @@ test('setWriters and setNotes do not expand a whole-row column width rule', () =
   }
   assert.equal(XLSX.read(W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師']])).bytes, { type: 'array' }).Sheets['202610'].J2.v, '王藥師');
 });
+
+test('a case saved before under a stale 登記日 is moved to its real month', () => {
+  const OLD = '000000777J\t王小美\tCOD02\tCodeine 針\tR05DA04\t480800\t鎮咳劑\t0_不明\t病人/家屬自述\t0_藥物不良反應\t2016/09/21\tUrticaria\t\t\tB00000\t陳藥師\t2026/11/17 21:31:20';
+  const [r] = P.parseText(OLD).rows;
+  // What the old version saved: dated 2016/09/21, numbered 1050901, on sheet 201609.
+  const before = Object.assign({}, r, { date: r.oldDate, id: '1050901' });
+  let bytes = W.appendRows(XLSX, P, null, P.assignIds(P.parseText(row(1, '2026/11/02 11:50:00')).rows, 1)).bytes;
+  bytes = W.appendRows(XLSX, P, bytes, [before]).bytes;
+  assert.ok(XLSX.read(bytes, { type: 'array' }).SheetNames.includes('201609'));
+  const ledger = W.readLedger(XLSX, P, bytes);
+  const [card] = P.assignIds([r], 10, viewOf(ledger));
+  card.staleId = ledger.ids.get(P.rowKey(r.chartNo, r.drugCode, r.oldDate));
+  assert.deepEqual([card.id, card.staleId], ['1151110', '1050901']);
+  const out = W.appendRows(XLSX, P, bytes, [card]);
+  assert.deepEqual(out.removedSheets, ['201609']);
+  assert.deepEqual(out.removed.map(d => d.values[0]), ['1050901']);
+  const book = XLSX.read(out.bytes, { type: 'array' });
+  assert.deepEqual(book.SheetNames, ['202611']);
+  assert.deepEqual(sheet11(out.bytes), [['1151101', '000000001Z'], ['1151110', '000000777J']]);
+});
