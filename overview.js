@@ -286,7 +286,7 @@
 
   function severityCell(c) {
     const serious = c.form && R.SERIOUS_LABEL[c.form.seriousness];
-    return el('td', {}, c.severity || '—',
+    return el('td', { 'data-label': '嚴重度' }, c.severity || '—',
       c.form && c.form.seriousness ? el('div', { class: 'ov-sub' + (serious ? ' serious' : '') }, serious || '非嚴重') : null);
   }
 
@@ -312,17 +312,17 @@
       onmousedown: e => { if (e.shiftKey) e.preventDefault(); },  // no text selection on Shift-click
       onclick: e => tick(i, e.shiftKey),
     },
-    el('td', { class: 'ov-check-cell' }, box, el('span', { class: 'print-only' }, c.notable ? '✓' : '')),
-    el('td', { class: 'ov-id' }, c.id || '—'),
-    el('td', {}, c.date ? P.formatDate(c.date) : '—'),
-    el('td', {}, c.chartNo),
-    el('td', {}, c.drug),
-    el('td', {}, c.symptom),
+    el('td', { class: 'ov-check-cell', 'data-label': '值得注意' }, box, el('span', { class: 'print-only' }, c.notable ? '✓' : '')),
+    el('td', { class: 'ov-id', 'data-label': '識別碼' }, c.id || '—'),
+    el('td', { class: 'ov-date', 'data-label': '得知日期' }, c.date ? P.formatDate(c.date) : '—'),
+    el('td', { class: 'ov-chart', 'data-label': '病歷號' }, c.chartNo),
+    el('td', { class: 'ov-drug', 'data-label': '藥品' }, c.drug),
+    el('td', { 'data-label': '症狀' }, c.symptom),
     severityCell(c),
-    el('td', {}, outcomeText(c)),
-    el('td', {}, c.writer || el('span', { class: 'hint' }, '—')),
-    el('td', {}, ...c.hints.map(f => el('span', { class: 'flag ' + f.level }, f.label))),
-    el('td', { class: 'no-print' }, details));
+    el('td', { 'data-label': '後續結果' }, outcomeText(c)),
+    el('td', { 'data-label': '撰寫人' }, c.writer || el('span', { class: 'hint' }, '—')),
+    el('td', { class: 'ov-hints', 'data-label': '自動提示' }, ...c.hints.map(f => el('span', { class: 'flag ' + f.level }, f.label))),
+    el('td', { class: 'ov-more-cell no-print' }, details));
     if (!isOpen) return [tr];
     return [tr, detailRow(c)];
   }

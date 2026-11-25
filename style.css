@@ -279,6 +279,25 @@ button:disabled { opacity: .4; cursor: default; }
 .ov-legend summary { cursor: pointer; color: var(--muted); }
 .ov-legend li { margin-top: 4px; }
 
+/* Phones: each case is a card instead of a wide table row. */
+@media (max-width: 620px) {
+  .overview .controls .hint { flex-basis: 100%; }
+  .overview .ov-period label { white-space: nowrap; }
+  .ov-table thead { display: none; }
+  .ov-table, .ov-table tbody { display: block; }
+  .ov-table tr.ov-row { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--border); }
+  .ov-table tr.ov-row td { display: block; padding: 0; border: none; white-space: normal !important; }
+  .ov-table tr.ov-row td[data-label]:not(.ov-check-cell):not(.ov-id):not(.ov-date)::before { content: attr(data-label) "："; color: var(--muted); font-size: .8rem; }
+  .ov-table .ov-check-cell { grid-row: 1; grid-column: 1; text-align: left; }
+  .ov-table .ov-id { grid-row: 1; grid-column: 2; font-size: 1.05rem; }
+  .ov-table .ov-date { grid-row: 1; grid-column: 3; color: var(--muted); }
+  .ov-table tr.ov-row td:not(.ov-check-cell):not(.ov-id):not(.ov-date):not(.ov-more-cell) { grid-column: 1 / -1; }
+  .ov-table .ov-hints:empty, .ov-table .ov-hints:empty::before { display: none; }
+  .ov-table .ov-more-cell { grid-column: 1 / -1; }
+  .ov-table tr.ov-detail { display: block; }
+  .ov-table tr.ov-detail td { display: block; }
+}
+
 @media print {
   .overview .print-only { display: block; margin: 0 0 8px; }
   .overview header, .overview main { max-width: none; padding: 0; }
