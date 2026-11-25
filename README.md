@@ -175,6 +175,22 @@ report ticked.
 - **複製表格** copies the rows shown (tab-separated, no patient names) for Excel or Word;
   **列印** prints the summary and table on landscape A4.
 
+## Checking cases on a phone (`cases.html`)
+
+A read-only list for the phone: one short row per case (tap for details), filters 全部 /
+值得注意 / 有提示, search, newest month first.
+
+- On the PC's 案例總覽, pick the period and press **手機查看**: scan the QR code with the phone's
+  camera, or press **複製連結** and send the link to the phone (e.g. LINE).
+- The cases travel inside the link after `#` (識別碼, date, drug, symptom, severity, outcome,
+  撰寫人, ticks and hints; no names or 病歷號). Browsers never send that part to the website, so
+  nothing is uploaded; the phone keeps the last list and shows it when the page is opened again.
+  Press 手機查看 again for newer data.
+- The QR image comes from the qrcode-generator library on cdn.jsdelivr.net, loaded only when
+  手機查看 is pressed; without internet the link can still be copied.
+- Without a link, the phone page can also read ADR通報.xlsx picked on the phone (last 3 months).
+- Page: https://evelyn68961.github.io/adr-cards/cases.html
+
 ## Privacy
 
 Everything runs in the browser; nothing is uploaded. The only files written are the ones in the

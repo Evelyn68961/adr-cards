@@ -18,7 +18,8 @@
   let folder = null;
   let picked = null;       // { name, bytes } of a picked workbook (no folder)
   let all = [];            // joined cases (review.joinForms)
-  let shown = [];          // flagged cases of the period, in table order
+  let shown = [];
+  let periodCases = [];    // flagged cases of the period, for the phone link          // flagged cases of the period, in table order
   const open = new Set();  // 識別碼 whose details row is expanded
   // Marks not yet in Excel: 識別碼 -> true (marked) / false (unmarked).
   const pendingMarks = new Map();
@@ -253,6 +254,8 @@
     const { from, to } = period();
     const inPeriod = all.filter(c => c.month >= from && c.month <= to);
     const flagged = R.flagCases(inPeriod, { marks: pendingMarks });
+    periodCases = flagged;
+    if (!$('phonePanel').hidden) showPhoneLink();
     const sum = R.summarize(flagged);
     $('printTitle').textContent = `期間：${rocMonth(from)}${from === to ? '' : ' 至 ' + rocMonth(to)}`;
     $('statTotal').textContent = `${sum.total} 件`;
@@ -346,6 +349,61 @@
     return el('tr', { class: 'ov-detail' }, el('td', { colspan: '11' }, el('div', { class: 'ov-detail-grid' }, ...body)));
   }
 
+  // ---- phone link (cases.html) ----
+
+  // The phone opens the published site; the desktop helper is only on this PC.
+  const PHONE_PAGE = location.hostname.endsWith('github.io')
+    ? new URL('cases.html', location.href).href
+    : 'https://evelyn68961.github.io/adr-cards/cases.html';
+  // Most a QR code holds (version 40, low error correction, bytes).
+  const QR_MAX = 2900;
+  const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+  let phoneUrl = '';
+  let phoneToken = 0;
+
+  function loadQrLib() {
+    if (window.qrcode) return Promise.resolve();
+    if (!loadQrLib.promise) {
+      loadQrLib.promise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = QR_LIB;
+        s.onload = resolve;
+        s.onerror = () => { loadQrLib.promise = null; reject(new Error('QR code 元件無法載入（沒有網路？）')); };
+        document.head.appendChild(s);
+      });
+    }
+    return loadQrLib.promise;
+  }
+
+  async function showPhoneLink() {
+    const token = ++phoneToken;
+    const { from, to } = period();
+    const now = new Date();
+    const at = `${P.formatDate(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const url = PHONE_PAGE + '#' + await window.ADRPhoneLink.encode(R.packCases(periodCases, { from, to, at }));
+    if (token !== phoneToken) return;
+    phoneUrl = url;
+    const qr = $('phoneQr');
+    $('phoneNote').textContent = `${periodCases.length} 件案例（${rocMonth(from)}${from === to ? '' : ' 至 ' + rocMonth(to)}）。之後有新案例或勾選，請再按一次「手機查看」。`;
+    if (url.length > QR_MAX) {
+      qr.hidden = true;
+      $('phoneNote').textContent = `案例太多，放不進 QR code：請把期間縮短（例如只選一個月），或按「複製連結」傳到手機。`;
+      return;
+    }
+    try {
+      await loadQrLib();
+      if (token !== phoneToken) return;
+      const code = window.qrcode(0, 'L');
+      code.addData(url);
+      code.make();
+      qr.innerHTML = code.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      qr.hidden = false;
+    } catch (e) {
+      qr.hidden = true;
+      $('phoneNote').textContent = `${e.message}。請按「複製連結」傳到手機。`;
+    }
+  }
+
   // ---- wiring ----
 
   ['fromMonth', 'toMonth', 'notableOnly', 'notableFirst'].forEach(id => $(id).addEventListener('change', () => render()));
@@ -374,6 +432,16 @@
     }
   });
   $('printBtn').addEventListener('click', () => window.print());
+  $('phoneBtn').addEventListener('click', () => { $('phonePanel').hidden = false; showPhoneLink(); });
+  $('phoneClose').addEventListener('click', () => { $('phonePanel').hidden = true; });
+  $('phoneCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(phoneUrl);
+      toast('已複製連結，可以傳到手機（例如 LINE 傳給自己）');
+    } catch (e) {
+      toast('無法複製：' + e.message);
+    }
+  });
   $('reloadBtn').addEventListener('click', () => { picked = null; reload(); });
   $('fileInput').addEventListener('change', e => {
     if (e.target.files.length) loadPicked([...e.target.files]).catch(err => { $('sourceStatus').textContent = '讀取失敗：' + err.message; });

@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon-overview.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2f6f73">
-  <link rel="stylesheet" href="style.css?v=20261125">
+  <link rel="stylesheet" href="style.css?v=20261125b">
 </head>
 <body class="overview">
   <header>
@@ -39,6 +39,7 @@
           <button type="button" class="secondary" data-range="12">近 12 個月</button>
         </span>
         <span class="actions">
+          <button id="phoneBtn" type="button" class="secondary">手機查看</button>
           <button id="copyBtn" type="button" class="secondary">複製表格</button>
           <button id="printBtn" type="button">列印</button>
         </span>
@@ -50,6 +51,19 @@
         <div class="stat no-print"><span class="stat-label">有自動提示、未勾選</span><span id="statSuggested" class="stat-value"></span></div>
         <div class="stat stat-serious"><span class="stat-label">嚴重不良反應</span><span id="statSerious" class="stat-value"></span></div>
         <div class="stat"><span class="stat-label">尚無通報表</span><span id="statNoForm" class="stat-value"></span></div>
+      </div>
+
+      <div id="phonePanel" class="ov-phone no-print" hidden>
+        <div id="phoneQr" class="qr" hidden></div>
+        <div class="ov-phone-text">
+          <p><b>用手機相機掃描 QR code</b>，就能在手機上查看這段期間的案例。</p>
+          <p class="hint">連結裡只有識別碼、日期、藥品、症狀、嚴重度、結果、撰寫人和提示，沒有姓名和病歷號；資料在連結「#」之後，不會上傳到網站。</p>
+          <p id="phoneNote" class="hint"></p>
+          <div class="actions">
+            <button id="phoneCopy" type="button" class="secondary">複製連結</button>
+            <button id="phoneClose" type="button" class="secondary">關閉</button>
+          </div>
+        </div>
       </div>
 
       <div class="ov-tops">
@@ -97,7 +111,8 @@
   <script src="parse.js?v=20261123"></script>
   <script src="workbook.js?v=20261123"></script>
   <script src="forms.js?v=20261106"></script>
-  <script src="review.js?v=20261106c"></script>
-  <script src="overview.js?v=20261125"></script>
+  <script src="phonelink.js?v=20261125"></script>
+  <script src="review.js?v=20261125"></script>
+  <script src="overview.js?v=20261125b"></script>
 </body>
 </html>

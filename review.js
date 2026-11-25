@@ -188,7 +188,33 @@
     ])).map(r => r.map(cell).join('\t')).join('\r\n');
   }
 
-  const api = { workbookCases, joinForms, monthOf, severityLevel, flagCases, summarize, toTsv, SERIOUS_LABEL };
+  // A period's cases, packed small for the phone link (cases.html). No names
+  // or 病歷號: only what is needed to check a case.
+  const LEVEL_CODE = { high: 'h', mid: 'm', info: 'i' };
+  const LEVEL_NAME = { h: 'high', m: 'mid', i: 'info' };
+  function packCases(flagged, { from, to, at }) {
+    return {
+      v: 1, f: from, t: to, at,
+      c: flagged.map(c => [
+        c.id, c.date ? `${c.date.getMonth() + 1}/${c.date.getDate()}` : '', c.drug, c.symptom, c.severity,
+        c.form ? SERIOUS_LABEL[c.form.seriousness] || (c.form.seriousness ? '非嚴重' : '') : '',
+        c.form ? c.form.outcome || '' : '', c.writer || '', c.notable ? 1 : 0,
+        c.hints.map(h => [h.label, LEVEL_CODE[h.level]]),
+      ]),
+    };
+  }
+  function unpackCases(data) {
+    if (!data || data.v !== 1 || !Array.isArray(data.c)) throw new Error('連結內容無法辨識');
+    return {
+      from: data.f, to: data.t, at: data.at,
+      cases: data.c.map(([id, date, drug, symptom, severity, serious, outcome, writer, marked, hints]) => ({
+        id, date, drug, symptom, severity, serious, outcome, writer, marked: !!marked,
+        hints: (hints || []).map(([label, level]) => ({ label, level: LEVEL_NAME[level] || 'info' })),
+      })),
+    };
+  }
+
+  const api = { packCases, unpackCases, workbookCases, joinForms, monthOf, severityLevel, flagCases, summarize, toTsv, SERIOUS_LABEL };
   if (inNode) module.exports = api;
   else root.ADRReview = api;
 })(typeof window !== 'undefined' ? window : globalThis);

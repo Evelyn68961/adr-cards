@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ADR 案例（手機）</title>
+  <link rel="icon" type="image/svg+xml" href="favicon-overview.svg">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="theme-color" content="#2f6f73">
+  <link rel="stylesheet" href="style.css?v=20261125b">
+</head>
+<body class="cases">
+  <header class="cs-top">
+    <div class="cs-title-row">
+      <h1>ADR 案例</h1>
+      <span id="period" class="cs-period"></span>
+    </div>
+    <div id="controls" class="cs-controls" hidden>
+      <div class="cs-filters" role="tablist">
+        <button type="button" class="cs-filter on" data-filter="all">全部 <b id="nAll">0</b></button>
+        <button type="button" class="cs-filter" data-filter="marked">值得注意 <b id="nMarked">0</b></button>
+        <button type="button" class="cs-filter" data-filter="hints">有提示 <b id="nHints">0</b></button>
+      </div>
+      <input id="search" class="cs-search" type="search" placeholder="搜尋識別碼、藥品、症狀、撰寫人" autocomplete="off">
+    </div>
+  </header>
+
+  <main class="cs-main">
+    <ul id="list" class="cs-list"></ul>
+    <p id="empty" class="cs-empty" hidden></p>
+
+    <section id="start" class="cs-start" hidden>
+      <p>在電腦的「案例總覽」按 <b>手機查看</b>，用手機掃描 QR code（或傳送連結到手機），就會在這裡顯示案例。</p>
+      <p>也可以直接選擇 ADR通報.xlsx（例如從 Google 雲端硬碟）：</p>
+      <label class="file-btn">選擇檔案<input id="fileInput" type="file" accept=".xls,.xlsx" multiple hidden></label>
+      <p id="pickStatus" class="hint"></p>
+    </section>
+    <p id="updated" class="cs-updated"></p>
+  </main>
+
+  <button id="toTop" type="button" class="cs-to-top" hidden aria-label="回到頂端">↑</button>
+
+  <script src="parse.js?v=20261123"></script>
+  <script src="forms.js?v=20261106"></script>
+  <script src="review.js?v=20261125"></script>
+  <script src="phonelink.js?v=20261125"></script>
+  <script src="cases.js?v=20261125b"></script>
+</body>
+</html>

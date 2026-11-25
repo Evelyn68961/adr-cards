@@ -105,3 +105,21 @@ test('marks are saved to column K, read back, and cleared', () => {
   const cleared = W.setNotes(XLSX, again, new Map([['1151002', '']])).bytes;
   assert.equal(R.workbookCases(XLSX, cleared).find(c => c.id === '1151002').marked, false);
 });
+
+test('the phone link carries the period without names or 病歷號, and round-trips', async () => {
+  const L = require('../phonelink.js');
+  const forms = F.readCases([FORM_HEADER, form('1151002', '000000002Z', '導致病人住院或延長病人住院時間', '尚未恢復/尚未解決')]);
+  const oct = R.flagCases(R.joinForms(R.workbookCases(XLSX, bytes), forms).filter(c => c.month === '11510'),
+    { marks: new Map([['1151002', true]]) });
+  const packed = R.packCases(oct, { from: '11510', to: '11510', at: '2026/11/25 10:00' });
+  const text = await L.encode(packed);
+  assert.match(text, /^[zj][A-Za-z0-9_-]+$/);
+  const json = JSON.stringify(packed);
+  assert.ok(!json.includes('000000002Z') && !json.includes('"X"'), 'no 病歷號 or names');
+  const back = R.unpackCases(await L.decode(text));
+  assert.deepEqual([back.from, back.at, back.cases.length], ['11510', '2026/11/25 10:00', 3]);
+  const c2 = back.cases.find(c => c.id === '1151002');
+  assert.deepEqual([c2.date, c2.serious, c2.outcome, c2.marked], ['10/9', '導致住院或延長住院', '尚未恢復/尚未解決/不良反應持續中', true]);
+  assert.deepEqual(c2.hints.map(h => h.level), ['high', 'mid', 'info']);
+  await assert.rejects(L.decode('xnope'));
+});
