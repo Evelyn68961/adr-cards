@@ -135,3 +135,15 @@ test('處置 is appended to 不良反應描述, since TFDA has no field for it',
   assert.equal(description(inside), inside.description);
   assert.ok(!F.tfdaSections(withTreatment).sections.flatMap(s => s.fields).some(f => f.label.startsWith('處置')));
 });
+
+test('a header row is found by its columns, and empty results are explained', () => {
+  // A copy (e.g. from Google Sheets) that starts with 時間戳記 instead of 臨床訓練計畫.
+  const head = ['時間戳記', '學員', '識別代碼 (請先詢問再填答)\r', '原通報單位識別代碼 (病歷號)\r', '不良反應症狀\r', '案件描述\r'];
+  const stats = {};
+  const cases = F.readCases([head, ['x', '甲', '１１５１１０３ ', '000000001A', 'Rash', '描述'], ['x', '乙', '', '000000002B', 'EPS', '短']], stats);
+  assert.deepEqual(cases.map(c => c.id), ['1151103']);
+  assert.deepEqual(stats, { headers: 1, rows: 2, noId: 1 });
+  const none = {};
+  assert.equal(F.readCases([['病歷號', '姓名'], ['000000001A', 'X']], none).length, 0);
+  assert.equal(none.headers, 0);
+});

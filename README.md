@@ -129,9 +129,14 @@ For printing cards that are already saved, in any combination.
 
 For entering finished report forms into the TFDA online ADR form.
 
-- Reads every `*通報表*.xls(x)` export in the ADR folder and its `ADR_<yyyMM>` folders (or a picked
-  file). Form versions with different column orders are handled; a case exported twice keeps the
-  most complete copy.
+- Reads every report-form export in the ADR folder and its `ADR_<yyyMM>` folders, whatever the
+  file is called: an Excel file counts as a report form by its columns (識別代碼 and others), and
+  the header row may start with 臨床訓練計畫 or not (e.g. a Google Sheets copy). Form versions with
+  different column orders are handled; a case exported twice keeps the most complete copy.
+- The page lists each file read with its number of cases, or why it gave none (not a report
+  form, only a header, or no 7-digit 識別代碼; rows without one are counted).
+- **上傳通報表** picks exports from anywhere: they are read at once and, with the desktop helper,
+  saved into the ADR folder (replacing a file of the same name) so the page keeps reading them.
 - Pick a month and a case. The case is laid out in the TFDA tabs (General, Patient, Reaction 1/2,
   Drug, Upload). Click any value to copy it; choices show the option to click on TFDA, mapped from
   the internal wording (e.g. 民眾 → 民眾或其他非醫療人員, 其他嚴重不良反應 →

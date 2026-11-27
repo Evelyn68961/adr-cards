@@ -52,17 +52,33 @@
     return index;
   }
 
+  // A header row: starts with 臨床訓練計畫, or (e.g. a Google Sheets copy that
+  // starts with 時間戳記) has the 識別代碼 column and at least three others.
+  function isHeader(row) {
+    if (clean(row[0]) === HEADER_START) return true;
+    const index = headerIndex(row);
+    return 'id' in index && Object.keys(index).length >= 4;
+  }
+
   // rows: array of arrays (SheetJS sheet_to_json with header:1, raw:false).
-  function readCases(rows) {
+  // `stats`, if given, counts what was found, to explain an empty result:
+  // { headers, rows, noId }.
+  function readCases(rows, stats = {}) {
     const cases = [];
     let index = null;
+    stats.headers = stats.headers || 0;
+    stats.rows = stats.rows || 0;
+    stats.noId = stats.noId || 0;
     for (const row of rows) {
-      if (clean(row[0]) === HEADER_START) { index = headerIndex(row); continue; }
-      if (!index) continue;
+      if (isHeader(row)) { index = headerIndex(row); stats.headers++; continue; }
+      if (!index || !row.some(v => clean(v))) continue;
+      stats.rows++;
       const c = {};
       for (const key of Object.keys(COLUMNS)) c[key] = key in index ? clean(row[index[key]]) : '';
       c.chartNo = c.chartNo.toUpperCase();
-      if (!/^\d{7}$/.test(c.id)) continue;
+      // Full-width digits or stray spaces typed into 識別代碼 still count.
+      c.id = c.id.normalize('NFKC').replace(/\s+/g, '');
+      if (!/^\d{7}$/.test(c.id)) { stats.noId++; continue; }
       c.filled = row.filter(v => clean(v)).length;
       cases.push(c);
     }

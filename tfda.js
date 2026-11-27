@@ -8,6 +8,8 @@
   const $ = id => document.getElementById(id);
   // Not Excel's ~$ lock files, which exist while a form is open.
   const FORM_FILE = /^(?!~\$).*通報表.*\.xlsx?$/i;
+  const EXCEL = /\.xlsx?$/i;
+  const WORKBOOK_NAME = 'ADR通報.xlsx';
   const DONE_KEY = 'adr-tfda-done';
 
   let folder = null;      // ADR folder (desktop helper only)
@@ -56,16 +58,28 @@
 
   // ---- loading ----
 
-  function casesFromBytes(bytes) {
+  // Cases in one Excel file, and what was found, to explain an empty result.
+  function readFile(bytes) {
     const wb = XLSX.read(bytes, { type: 'array' });
-    return wb.SheetNames.map(n => F.readCases(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })));
+    const stats = {};
+    const cases = wb.SheetNames.flatMap(n => F.readCases(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }), stats));
+    return { cases, stats };
   }
 
+  function describe(path, { cases, stats }) {
+    if (cases.length) return `${path}：${cases.length} 案` + (stats.noId ? `（另有 ${stats.noId} 列沒有 7 碼識別代碼，略過）` : '');
+    if (!stats.headers) return `${path}：不是通報表（找不到「識別代碼」等欄位）`;
+    if (!stats.rows) return `${path}：只有標題列，沒有資料`;
+    return `${path}：${stats.rows} 列都沒有 7 碼識別代碼（例如 1151103），所以沒有讀入`;
+  }
+
+  // Every Excel file in the ADR folder and its ADR_<yyyMM> folders except the
+  // workbook itself; a file counts as a report form by its columns, not its name.
   async function loadFromFolder() {
     const found = [];
     const scan = async (dir, prefix) => {
       for await (const name of dir.keys()) {
-        if (FORM_FILE.test(name) && !name.startsWith('~$')) found.push({ dir, name, path: prefix + name });
+        if (EXCEL.test(name) && !name.startsWith('~$') && name !== WORKBOOK_NAME) found.push({ dir, name, path: prefix + name });
       }
     };
     await scan(folder, '');
@@ -73,12 +87,19 @@
       if (/^ADR_\d{5}$/.test(name)) await scan(await folder.getDirectoryHandle(name), name + '\\');
     }
     const lists = [];
+    const lines = [];
     for (const f of found) {
-      const file = await (await f.dir.getFileHandle(f.name)).getFile();
-      lists.push(...casesFromBytes(new Uint8Array(await file.arrayBuffer())));
+      try {
+        const file = await (await f.dir.getFileHandle(f.name)).getFile();
+        const result = readFile(new Uint8Array(await file.arrayBuffer()));
+        if (result.cases.length) lists.push(result.cases);
+        if (result.cases.length || FORM_FILE.test(f.name) || result.stats.headers) lines.push(describe(f.path, result));
+      } catch (e) {
+        lines.push(`${f.path}：無法讀取（${e.message}）`);
+      }
     }
     reported = await readReported();
-    return { lists, names: found.map(f => f.path) };
+    return { lists, lines };
   }
 
   // 藥碼 per 識別碼 from the monthly sheets of ADR通報.xlsx (識別碼 | 病歷號 | 姓名 | 藥碼 | …).
@@ -171,29 +192,61 @@
     try {
       if (!folder) folder = await window.ADRLocal.detect();
       if (!folder) {
-        $('sourceStatus').textContent = '請按「選擇檔案」，選取「2.5.6－藥品不良反應 (ADR) 通報表.xls」。';
+        showSource(['請按「上傳通報表」，選取「2.5.6－藥品不良反應 (ADR) 通報表」Excel。']);
         return;
       }
-      const { lists, names } = await loadFromFolder();
-      if (!names.length) {
-        $('sourceStatus').textContent = 'ADR 資料夾和月份資料夾裡找不到「通報表」Excel；請把匯出檔放進去，或按「選擇檔案」。';
+      const { lists, lines } = await loadFromFolder();
+      if (!lines.length) {
+        showSource(['ADR 資料夾和 ADR_yyyMM 月份資料夾裡找不到通報表 Excel。請按「上傳通報表」選取匯出的檔案。']);
         return;
       }
-      setCases(F.mergeCases(lists), names);
+      setCases(F.mergeCases(lists), lines);
     } catch (e) {
-      $('sourceStatus').textContent = '讀取失敗：' + e.message;
+      showSource(['讀取失敗：' + e.message]);
     }
   }
 
+  // Picked files are read at once and, with the desktop helper, saved into
+  // the ADR folder (replacing a file of the same name), so the page keeps
+  // reading the latest export from there.
   async function loadPicked(files) {
+    showSource(['讀取中…']);
     const lists = [];
-    for (const f of files) lists.push(...casesFromBytes(new Uint8Array(await f.arrayBuffer())));
-    setCases(F.mergeCases(lists), [...files].map(f => f.name));
+    const lines = [];
+    const saved = [];
+    for (const f of files) {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const result = readFile(bytes);
+      lines.push(describe(f.name, result));
+      if (!result.cases.length) continue;
+      lists.push(result.cases);
+      if (folder) {
+        try {
+          const w = await (await folder.getFileHandle(f.name, { create: true })).createWritable();
+          await w.write(bytes);
+          await w.close();
+          saved.push(f.name);
+        } catch (e) {
+          lines.push(`${f.name} 沒有存進 ADR 資料夾：${e.message}`);
+        }
+      }
+    }
+    if (saved.length) {
+      // Read the whole folder again, so older exports there are merged too.
+      const { lists: all, lines: folderLines } = await loadFromFolder();
+      setCases(F.mergeCases(all), [`已存進 ADR 資料夾：${saved.join('、')}`, ...folderLines]);
+    } else {
+      setCases(F.mergeCases(lists), lines);
+    }
   }
 
-  function setCases(list, names) {
+  function showSource(lines) {
+    $('sourceStatus').replaceChildren(...lines.map(t => el('div', {}, t)));
+  }
+
+  function setCases(list, lines) {
     cases = list;
-    $('sourceStatus').textContent = `讀取自：${names.join('、')}（共 ${list.length} 案）`;
+    showSource([`共 ${list.length} 案`, ...lines]);
     const months = [...new Set(list.map(F.monthOf))].sort().reverse();
     const sel = $('month');
     const keep = sel.value;
@@ -473,7 +526,11 @@
 
   $('month').addEventListener('change', () => { current = null; renderList(); });
   $('reloadBtn').addEventListener('click', reload);
-  $('fileInput').addEventListener('change', e => e.target.files.length && loadPicked(e.target.files));
+  $('fileInput').addEventListener('change', e => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) loadPicked(files).catch(err => showSource(['讀取失敗：' + err.message]));
+  });
   $('allPdfBtn').addEventListener('click', async () => {
     await makeAttachments(monthCases());
     if (current) select(current);
