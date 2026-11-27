@@ -63,6 +63,9 @@
     return wb.SheetNames.flatMap(n => F.readCases(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })));
   };
 
+  // ADR通報.xlsx, then every report-form export (found by its columns, not
+  // its name). PDFs are returned unread: they are read after the first
+  // render (readPdfs), from the results kept on this PC when possible.
   async function loadFromFolder() {
     let cases = [];
     const names = [];
@@ -74,18 +77,31 @@
       if (e.name !== 'NotFoundError') throw e;
     }
     const forms = [];
+    const pdfs = [];
     const scan = async (dir, prefix) => {
       for await (const name of dir.keys()) {
-        if (!FORM_FILE.test(name)) continue;
-        forms.push(formsFrom(await bytesOf(await (await dir.getFileHandle(name)).getFile())));
-        names.push(prefix + name);
+        if (!window.ADRPdfForm.isFormFile(name)) continue;
+        if (/\.pdf$/i.test(name)) { pdfs.push({ dir, name, path: prefix + name }); continue; }
+        try {
+          const found = formsFrom(await bytesOf(await (await dir.getFileHandle(name)).getFile()));
+          if (found.length) { forms.push(found); names.push(prefix + name); }
+        } catch (e) { /* not a readable Excel file: not a form */ }
       }
     };
     await scan(folder, '');
     for await (const name of folder.keys()) {
       if (/^ADR_\d{5}$/.test(name)) await scan(await folder.getDirectoryHandle(name), name + '\\');
     }
-    return { cases, forms: F.mergeCases(forms), names };
+    return { cases, forms, names, pdfs };
+  }
+
+  async function readPdfs(pdfs, forms, names) {
+    for (const f of pdfs) {
+      try {
+        const c = await window.ADRPdfForm.readCached(f.name, await bytesOf(await (await f.dir.getFileHandle(f.name)).getFile()));
+        if (c && /^\d{7}$/.test(c.id)) { forms.push([c]); names.push(f.path); }
+      } catch (e) { /* the PDF reader could not load: Excel exports still count */ }
+    }
   }
 
   async function loadPicked(files) {
@@ -94,7 +110,8 @@
     let book = null;
     for (const f of files) {
       const bytes = await bytesOf(f);
-      if (FORM_FILE.test(f.name)) forms.push(formsFrom(bytes));
+      if (/\.pdf$/i.test(f.name)) { const c = await window.ADRPdfForm.readCached(f.name, bytes).catch(() => null); if (c) forms.push([c]); }
+      else if (FORM_FILE.test(f.name) || formsFrom(bytes).length) forms.push(formsFrom(bytes));
       else book = { name: f.name, bytes };
       names.push(f.name);
     }
@@ -112,7 +129,13 @@
         $('sourceStatus').textContent = `請按「選擇檔案」，選取 ${WORKBOOK_NAME}（可同時選取「通報表」Excel）。`;
         return;
       }
-      setData(await loadFromFolder(), resort);
+      const data = await loadFromFolder();
+      const show = keepOrder => setData({ cases: data.cases, forms: F.mergeCases(data.forms), names: data.names }, keepOrder);
+      show(resort);
+      if (data.pdfs.length) {
+        await readPdfs(data.pdfs, data.forms, data.names);
+        show(false);
+      }
     } catch (e) {
       $('sourceStatus').textContent = '讀取失敗：' + e.message;
     }
@@ -255,6 +278,7 @@
     const inPeriod = all.filter(c => c.month >= from && c.month <= to);
     const flagged = R.flagCases(inPeriod, { marks: pendingMarks });
     periodCases = flagged;
+    showMeetingCount();
     if (!$('phonePanel').hidden) showPhoneLink();
     const sum = R.summarize(flagged);
     $('printTitle').textContent = `期間：${rocMonth(from)}${from === to ? '' : ' 至 ' + rocMonth(to)}`;
@@ -404,9 +428,68 @@
     }
   }
 
+  // ---- meeting list (例會 Excel) ----
+
+  const REVIEWER_KEY = 'adr-meeting-reviewer';
+  const gregorian = key => String(Number(key.slice(0, 3)) + 1911) + key.slice(3);   // "11508" -> "202608"
+
+  function openMeeting() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REVIEWER_KEY) || '{}');
+      if (!$('reviewer').value) $('reviewer').value = saved.name || '';
+      if (!$('reviewerId').value) $('reviewerId').value = saved.id || '';
+    } catch (e) { /* only a convenience */ }
+    $('meetingPanel').hidden = false;
+    showMeetingCount();
+  }
+
+  function showMeetingCount() {
+    if ($('meetingPanel').hidden) return;
+    const n = periodCases.filter(c => c.notable).length;
+    $('meetingStatus').replaceChildren(n
+      ? `這段期間已勾選 ${n} 件，會依識別碼排列。ICU 和通報日期請在 Excel 中確認。`
+      : '這段期間還沒有勾選的案例：先按「勾選 Hartwig ≥4」或自己勾選。');
+  }
+
+  async function saveMeeting() {
+    const picked = periodCases.filter(c => c.notable);
+    if (!picked.length) { showMeetingCount(); return; }
+    const reviewer = $('reviewer').value.trim();
+    const reviewerId = $('reviewerId').value.trim().toUpperCase();
+    try { localStorage.setItem(REVIEWER_KEY, JSON.stringify({ name: reviewer, id: reviewerId })); } catch (e) { /* convenience */ }
+    const { from, to } = period();
+    const name = `ADR例會名單_${gregorian(from)}-${gregorian(to)}.xlsx`;
+    const ws = XLSX.utils.aoa_to_sheet(R.meetingSheet(picked, { allCases: all, reviewer, reviewerId }));
+    ws['!cols'] = R.MEETING_WIDTHS.map(wch => ({ wch }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '工作表1');
+    const bytes = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    const link = el('a', { href: url, download: name }, '下載');
+    let where = '';
+    if (folder) {
+      try {
+        const w = await (await folder.getFileHandle(name, { create: true })).createWritable();
+        await w.write(bytes);
+        await w.close();
+        where = '（已存進 ADR 資料夾）';
+      } catch (e) {
+        where = `（沒有存進 ADR 資料夾：${e.message}）`;
+      }
+    }
+    $('meetingStatus').replaceChildren(`✓ ${name}：${picked.length} 件${where}　`, link);
+  }
+
   // ---- wiring ----
 
   ['fromMonth', 'toMonth', 'notableOnly', 'notableFirst'].forEach(id => $(id).addEventListener('change', () => render()));
+  $('markHartwig').addEventListener('click', () => {
+    const ids = periodCases.filter(c => canMark(c) && !c.notable && c.hints.some(h => h.code === 'hartwig')).map(c => c.id);
+    if (ids.length) setMarks(ids, true);
+    toast(ids.length ? `已勾選 ${ids.length} 件 Hartwig ≥4 的案例` : '這段期間沒有其他 Hartwig ≥4 的案例');
+  });
+  $('meetingBtn').addEventListener('click', openMeeting);
+  $('meetingSave').addEventListener('click', () => saveMeeting().catch(e => $('meetingStatus').replaceChildren('存檔失敗：' + e.message)));
   $('markAll').addEventListener('click', () => setMarks(shown.filter(c => canMark(c) && !c.notable).map(c => c.id), true));
   $('markNone').addEventListener('click', () => {
     const marked = shown.filter(c => canMark(c) && c.notable);

@@ -56,7 +56,8 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
 - A case already in the sheet (same 病歷號 + 藥碼 + 得知日期) is never added twice: saving again **overwrites** that row with the card's current values (hand fixes to
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
-  **值得注意** (ticked on the 案例總覽 page).
+  **值得注意** (ticked on the 案例總覽 page) | **通報者** | **通報者員編** (HIS 最後異動者 and 員編, from
+  the HIS paste; kept when a case is saved again from rows without them).
 - **撰寫人** (who writes up the case) is typed or pasted into the boxes in the 本月案例清單 table
   (unsaved ones turn yellow), then saved to column J with **儲存撰寫人** (or Enter); an empty box
   clears it. The page says whether it worked; if not, the names stay in the boxes to try again. Saves only rewrite
@@ -189,6 +190,26 @@ report ticked.
 - Ticked cases are highlighted and, with cases that have hints, listed first.
 - **複製表格** copies the rows shown (tab-separated, no patient names) for Excel or Word;
   **列印** prints the summary and table on landscape A4.
+
+### 例會名單 (meeting list)
+
+On 案例總覽, for the meeting every 4 months (e.g. 08–11):
+
+1. Pick the months (**近 4 個月**), press **勾選 Hartwig ≥4** (the cases whose report form says
+   嚴重不良反應【院內通報獎勵金要求】 4級 or more; 自動提示 shows them as "Hartwig n 級（獎勵）"),
+   and tick or untick any other case.
+2. **產生例會 Excel** → fill 審核者 / 員編 once (kept on this PC) → **存成 Excel**: the ticked cases
+   go into `ADR例會名單_<yyyyMM>-<yyyyMM>.xlsx` in the ADR folder (and as a download), one row each:
+   識別代碼 | ICU | 病歷號 | 通報者(200) | 員編 | 發生日期 | 通報日期 | 通報藥品 | 通報症狀 | 撰寫人 | 員編 |
+   審核者 | 員編, then 單位主管：.
+   - 通報者 / 員編: from the HIS paste (role from the 員編's letter: A 醫, B 護, C 藥); cases saved
+     before this was recorded have them blank.
+   - 發生日期, 通報症狀: report form; 通報日期: the form's 表單提交日期; 通報藥品: 藥碼.
+   - 撰寫人 員編: looked up from the 通報者 names HIS recorded; blank if that person never keyed a case.
+   - ICU is not recorded anywhere: blank, fill it in Excel.
+
+Report forms are found by their columns (not the file name), and printed PDFs are included once
+the TFDA helper or this page has read them (kept on this PC).
 
 ## Checking cases on a phone (`cases.html`)
 

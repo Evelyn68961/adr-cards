@@ -123,3 +123,33 @@ test('the phone link carries the period without names or 病歷號, and round-tr
   assert.deepEqual(c2.hints.map(h => h.level), ['high', 'mid', 'info']);
   await assert.rejects(L.decode('xnope'));
 });
+
+test('meeting list: 通報者 from HIS, Hartwig hint, one row per ticked case', () => {
+  const HIS = (chart, code, sym, date, uid, user) =>
+    `${chart}\tX\t${code}\t藥\tA00\t1\t類\t2_中等\t醫療人員提供\t0_藥物不良反應\t\t${sym}\t\t\t${uid}\t${user}\t${date}`;
+  const pasted = P.parseText([
+    HIS('000000011A', 'HEN01', 'Lactic acidosis', '2026/08/16 10:00:00', 'C00001', '王藥師'),
+    HIS('000000012B', 'ERA01', 'Rash', '2026/08/24 10:00:00', 'B00002', '李護理師'),
+  ].join('\n')).rows;
+  assert.deepEqual(pasted.map(r => [r.hisUser, r.hisUserId]), [['王藥師', 'C00001'], ['李護理師', 'B00002']]);
+  let book = W.appendRows(XLSX, P, null, P.assignIds(pasted, 1)).bytes;
+  book = W.setWriters(XLSX, book, new Map([['1150801', '王藥師'], ['1150802', '王藥師']])).bytes;
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(book, { type: 'array' }).Sheets['202608'], { header: 1 });
+  assert.deepEqual(sheet[0].slice(11, 13), ['通報者', '通報者員編']);
+  // Pasting the same case again without the HIS columns keeps them.
+  const again = W.appendRows(XLSX, P, book, P.assignIds(P.parseText(sheet.slice(1).map(r => r.slice(0, 9).join('\t')).join('\n')).rows, 1));
+  assert.equal(XLSX.utils.sheet_to_json(XLSX.read(again.bytes, { type: 'array' }).Sheets['202608'], { header: 1 })[1][11], '王藥師');
+
+  const HEAD = ['臨床訓練計畫', '學員', '識別代碼\r', '原通報單位識別代碼\r', '不良反應發生之最初日期\r', '不良反應症狀\r',
+    '嚴重不良反應【院內通報獎勵金要求】\r', '表單提交日期\r'];
+  const forms = F.readCases([HEAD,
+    ['計畫', '王藥師', '1150801', '000000011A', '2026-08-15', 'Lactic acidosis', '5級：4級 + 入住ICU', '2026-08-29'],
+    ['計畫', '王藥師', '1150802', '000000012B', '2026-08-23', 'Rash, dyspnea', '3級(含)以下', '2026-08-25']]);
+  const cases = R.flagCases(R.joinForms(R.workbookCases(XLSX, book), forms), { marks: new Map([['1150801', true], ['1150802', true]]) });
+  assert.deepEqual(cases.map(c => c.hints.some(h => h.code === 'hartwig')), [true, false]);
+  const rows = R.meetingSheet(cases.filter(c => c.notable), { reviewer: '主任', reviewerId: 'C00100' });
+  assert.equal(rows[0][3], '通報者(200)');
+  assert.deepEqual(rows[1], ['1150801', '', '000000011A', '王藥師(藥)', 'C00001', '2026/8/15', '2026/08/29', 'HEN01', 'Lactic acidosis', '王藥師', 'C00001', '主任', 'C00100']);
+  assert.deepEqual(rows[2].slice(3, 5), ['李護理師(護)', 'B00002']);
+  assert.deepEqual(rows.slice(-2), [[], ['單位主管：']]);
+});

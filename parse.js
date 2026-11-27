@@ -16,11 +16,14 @@
     source: ['記錄來源', '通報來源', '通報人員'],
     symptom: ['症狀'],
     date: ['得知日期', '登記日', '最後異動時間'],
+    // Who keyed the reaction into HIS: the 通報者 on the meeting list.
+    hisUser: ['最後異動者'],
+    hisUserId: ['最後異動者員編'],
   };
   const LAYOUTS = {
     // HIS export: 病歷號 姓名 藥碼 MDPNAME ATC 藥理分類 藥理分類名稱 嚴重程度 記錄來源
     //             是否過敏 登記日 症狀 疫苗接種日期 疫苗接種院所 最後異動者員編 最後異動者 最後異動時間
-    17: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 7, source: 8, symptom: 11, date: [10, 16] },
+    17: { chartNo: 0, name: 1, drugCode: 2, drug: 3, severity: 7, source: 8, symptom: 11, date: [10, 16], hisUserId: 14, hisUser: 15 },
     // Monthly Excel sheet: 識別碼 病歷號 姓名 藥碼 藥名 嚴重度 通報來源 症狀 得知日期
     9: { chartNo: 1, name: 2, drugCode: 3, drug: 4, severity: 5, source: 6, symptom: 7, date: [8] },
     // Same without 識別碼 (sheet rows from before the column was added)
@@ -166,6 +169,8 @@
         drugRaw: get('drug'),
         severity: get('severity'),
         source: get('source'),
+        hisUser: get('hisUser'),
+        hisUserId: get('hisUserId').toUpperCase(),
         symptomRaw: get('symptom'),
         date,
         oldDate,

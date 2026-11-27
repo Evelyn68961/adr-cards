@@ -20,6 +20,8 @@
 }
 
 * { box-sizing: border-box; }
+/* `hidden` wins over any display set by a class (e.g. flex panels). */
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -372,3 +374,9 @@ button:disabled { opacity: .4; cursor: default; }
 .source-warn { color: var(--warn-text); }
 .source-files summary { cursor: pointer; width: max-content; }
 .source-files div { padding-left: 1em; }
+
+/* 例會 Excel on the overview */
+.ov-meeting { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 8px; }
+.ov-input { width: 7em; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); }
+.ov-input.short { width: 6em; }
+.ov-meeting .hint a { color: var(--accent); font-weight: 600; }

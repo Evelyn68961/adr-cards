@@ -76,6 +76,10 @@
   // empty when not marked.
   const NOTE = '值得注意';
   const NOTE_COL = 10;
+  // 通報者 (HIS 最後異動者) and their 員編, for the meeting list (columns L, M).
+  const HIS_USER_COL = 11;
+  const HIS_USER_ID_COL = 12;
+  const HIS_HEADER = ['通報者', '通報者員編'];
   const MARKED = 'V';
 
   // What the workbook holds: { months: { '202610': { key: '11510', rows, maxSeq } },
@@ -115,6 +119,33 @@
     let n = 0;
     owners.forEach((_, id) => { if (id.startsWith(key)) n++; });
     return n;
+  }
+
+  // Writes the case's 通報者 / 員編 (from the HIS paste) into columns L and M,
+  // labelling them on the header row; a case pasted without them (rows
+  // copied from the sheet) keeps what is there. Returns whether it changed.
+  function setHisUser(XLSX, ws, rowIndex, r, aoa) {
+    if (!r.hisUser && !r.hisUserId) return false;
+    let changed = false;
+    [[HIS_USER_COL, r.hisUser], [HIS_USER_ID_COL, r.hisUserId]].forEach(([c, v]) => {
+      const addr = XLSX.utils.encode_cell({ r: rowIndex, c });
+      if (!v || (ws[addr] && String(ws[addr].v).trim() === v)) return;
+      ws[addr] = { t: 's', v };
+      changed = true;
+    });
+    if (changed) {
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      range.e.c = Math.max(range.e.c, HIS_USER_ID_COL);
+      ws['!ref'] = XLSX.utils.encode_range(range);
+      const head = aoa.findIndex(row => String(row[0]).trim() === '識別碼' || String(row[1]).trim() === '病歷號');
+      if (head >= 0) {
+        HIS_HEADER.forEach((label, k) => {
+          const addr = XLSX.utils.encode_cell({ r: range.s.r + head, c: HIS_USER_COL + k });
+          if (!ws[addr]) ws[addr] = { t: 's', v: label };
+        });
+      }
+    }
+    return changed;
   }
 
   // Returns { bytes, added: [{sheet, row}], updated: [{sheet, row}],
@@ -161,9 +192,9 @@
         const holders = (r.recorded && !r.fixed) || !r.id ? [] : (byId.get(r.id) || []);
         const at = byKey.has(key) ? byKey.get(key) : holders[0];
         holders.forEach(i => { if (i !== at) drop.add(i); });
-        // A row taken over from another case does not keep that case's 撰寫人 or mark.
+        // A row taken over from another case does not keep that case's 撰寫人, mark or 通報者.
         if (!byKey.has(key) && at !== undefined) {
-          [WRITER_COL, NOTE_COL].forEach(c => delete ws[XLSX.utils.encode_cell({ r: at + base, c })]);
+          [WRITER_COL, NOTE_COL, HIS_USER_COL, HIS_USER_ID_COL].forEach(c => delete ws[XLSX.utils.encode_cell({ r: at + base, c })]);
         }
         const values = P.sheetRow(r);
         if (at === undefined) {
@@ -172,13 +203,19 @@
           aoa[i] = values;
           byKey.set(key, i);
           written.add(i);
+          setHisUser(XLSX, ws, base + i, r, aoa);
           added.push({ sheet: name, row: r });
           return;
         }
         written.add(at);
         // Keep the 識別碼 the sheet already has if the row comes without one.
         if (!values[0]) values[0] = aoa[at][0];
-        if (values.every((v, c) => sameCell(v, aoa[at][c]))) { duplicates.push(r); return; }
+        const hisChanged = setHisUser(XLSX, ws, base + at, r, aoa);
+        if (values.every((v, c) => sameCell(v, aoa[at][c]))) {
+          if (hisChanged) updated.push({ sheet: name, row: r });
+          else duplicates.push(r);
+          return;
+        }
         XLSX.utils.sheet_add_aoa(ws, [values], Object.assign({ origin: { r: at + base, c: 0 } }, opts));
         aoa[at] = values;
         byKey.set(key, at);

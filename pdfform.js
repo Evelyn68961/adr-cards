@@ -33,7 +33,7 @@
     ['不良反應症狀', 'symptoms', 'text'],
     ['處置', 'treatment', 'text'],
     ['不良反應後續結果', 'outcome', 'radio'],
-    ['嚴重不良反應【院內', 'hartwig', 'skip'],
+    ['嚴重不良反應【院內', 'hartwig', 'radio'],
     ['不良反應嚴重性', 'seriousness', 'radio'],
     ['案件描述', 'description', 'text'],
     ['相關檢查及檢驗數據', 'labs', 'text'],
@@ -133,7 +133,7 @@
     const c = {
       trainee: '', reporter: '', onset: '', learned: '', domestic: '', source: '', literature: '',
       id: '', chartNo: '', sex: '', age: '', height: '', weight: '', symptoms: '', treatment: '',
-      outcome: '', seriousness: '', description: '', labs: '', labNote: '', other: '', suspect: '',
+      outcome: '', seriousness: '', hartwig: '', description: '', labs: '', labNote: '', other: '', suspect: '',
       concomitant: '', interacting: '', naranjoScore: '', naranjo: '', submitted: '',
     };
     for (const k of Object.keys(c)) if (values[k] != null) c[k] = values[k].trim();
@@ -223,7 +223,34 @@
 
   const retry = () => { ready = null; };
 
-  const api = { parsePages, readPdf, retry };
+  // Reading draws every page, so each PDF is read once: the result is kept
+  // on this PC by file name and size, shared by the pages that read forms.
+  const CACHE_KEY = 'adr-pdf-cases-v2';   // v2: with Hartwig
+  let cache = null;
+  function cacheMap() {
+    if (!cache) {
+      try { cache = new Map(Object.entries(JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'))); } catch (e) { cache = new Map(); }
+    }
+    return cache;
+  }
+  async function readCached(name, bytes) {
+    const key = name + '|' + bytes.length;
+    const map = cacheMap();
+    if (!map.has(key)) {
+      map.set(key, await readPdf(bytes));
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries([...map].slice(-300)))); } catch (e) { /* saves time only */ }
+    }
+    return map.get(key);
+  }
+
+  // Files that may hold report forms: Excel exports and printed PDFs, not
+  // ADR通報.xlsx, Excel lock files, the PDFs this app makes (ADR_<識別碼>…),
+  // the meeting list, or examples and blank forms.
+  const isFormFile = name => !name.startsWith('~$') && name !== 'ADR通報.xlsx' &&
+    !/範例|空白|樣本|template|例會名單/i.test(name) &&
+    (/\.xlsx?$/i.test(name) || (/\.pdf$/i.test(name) && !/^ADR_\d/i.test(name)));
+
+  const api = { parsePages, readPdf, readCached, isFormFile, retry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRPdfForm = api;
 })(typeof window !== 'undefined' ? window : globalThis);

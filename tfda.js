@@ -11,11 +11,7 @@
   const EXCEL = /\.xlsx?$/i;
   // The report form printed to PDF; not the PDFs this app makes (ADR_<識別碼>…).
   const PDF = /\.pdf$/i;
-  // Examples and blank forms (e.g. ADR通報表_填寫範例集.pdf) are not cases.
-  const isFormFile = name => !name.startsWith('~$') && name !== WORKBOOK_NAME && !/範例|空白|樣本|template/i.test(name) &&
-    (EXCEL.test(name) || (PDF.test(name) && !/^ADR_\d/i.test(name)));
-  const WORKBOOK_NAME = 'ADR通報.xlsx';
-  const DONE_KEY = 'adr-tfda-done';
+  const isFormFile = name => window.ADRPdfForm.isFormFile(name);
 
   let folder = null;      // ADR folder (desktop helper only)
   let cases = [];
@@ -66,32 +62,13 @@
   // Cases in one Excel file, and what was found, to explain an empty result.
   // A printed form gives one case; reading draws every page, so each file is
   // read once per visit.
-  // Reading a printed form draws every page, so each PDF is read once: the
-  // result is kept on this PC by file name and size (PDF_CACHE).
-  const PDF_CACHE = 'adr-pdf-cases-v1';
-  const pdfCache = new Map(Object.entries((() => {
-    try { return JSON.parse(localStorage.getItem(PDF_CACHE) || '{}'); } catch (e) { return {}; }
-  })()));
-  function keepPdfCache() {
-    try {
-      const entries = [...pdfCache].slice(-300);
-      localStorage.setItem(PDF_CACHE, JSON.stringify(Object.fromEntries(entries)));
-    } catch (e) { /* only saves time next visit */ }
-  }
   const pdfResult = c => ({
     cases: c && /^\d{7}$/.test(c.id) ? [c] : [],
     stats: { headers: c ? 1 : 0, rows: c ? 1 : 0, noId: c && !/^\d{7}$/.test(c.id) ? 1 : 0 },
   });
-  async function readPdfFile(key, bytes) {
-    if (!pdfCache.has(key)) {
-      pdfCache.set(key, await window.ADRPdfForm.readPdf(bytes));
-      keepPdfCache();
-    }
-    return pdfResult(pdfCache.get(key));
-  }
 
   async function readAny(name, bytes) {
-    return PDF.test(name) ? readPdfFile(name + '|' + bytes.length, bytes) : readFile(bytes);
+    return PDF.test(name) ? pdfResult(await window.ADRPdfForm.readCached(name, bytes)) : readFile(bytes);
   }
 
   function readFile(bytes) {

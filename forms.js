@@ -26,6 +26,7 @@
     treatment: '處置',
     outcome: '不良反應後續結果',
     seriousness: '不良反應嚴重性',
+    hartwig: '嚴重不良反應【院內',
     description: '案件描述',
     labs: '相關檢查及檢驗數據',
     labNote: '檢查描述',
@@ -375,12 +376,19 @@
     };
   }
 
+  // modified Hartwig level from 嚴重不良反應【院內通報獎勵金要求】: "5級：4級 + 入住ICU" -> 5,
+  // "3級(含)以下" -> 3; 0 when not filled in. Level 4 and up earn the reward.
+  function hartwigLevel(v) {
+    const m = String(v || '').normalize('NFKC').match(/^\s*(\d)\s*級/);
+    return m ? Number(m[1]) : 0;
+  }
+
   // "1151001" -> "11510"; ROC year-month the 識別碼 belongs to.
   const monthOf = c => c.id.slice(0, 5);
 
   const api = {
     readCases, mergeCases, isoDate, splitAge, splitSymptoms, parseDrugs, tfdaDrug, pickSource, pickSeriousness,
-    pickOutcome, tfdaSections, attachmentContent, attachmentName, hasLabs, monthOf, isNone,
+    pickOutcome, tfdaSections, attachmentContent, attachmentName, hasLabs, monthOf, isNone, hartwigLevel,
     SOURCES, SERIOUSNESS, OUTCOMES, AGE_KINDS, RECHALLENGE,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -28,6 +28,7 @@
         out.push({
           id: str(r[0]), chartNo, drugCode: str(r[3]), drug: P.cleanDrug(r[4]), severity: str(r[5]),
           source: str(r[6]), symptom: P.cleanSymptom(r[7]), date, writer: str(r[9]), ...markOf(r[10]),
+          hisUser: str(r[11]), hisUserId: str(r[12]).toUpperCase(),
         });
       });
     });
@@ -62,6 +63,11 @@
       description: form.description,
       treatment: F.isNone(form.treatment) ? '' : form.treatment,
       reporter: form.reporter,
+      writer: form.trainee || form.reporter,
+      hartwig: F.hartwigLevel(form.hartwig),
+      onset: form.onset,
+      submitted: form.submitted,
+      symptoms: form.symptoms,
     };
   }
 
@@ -147,6 +153,7 @@
         add('repeatDrug', '同藥品多件：' + repeated.map(d => `${d.key}×${byDrug.get(d.key)}`).join(SEP), 'info');
       }
       if (byPatient.get(c.chartNo) > 1) add('repeatPatient', `同病人 ${byPatient.get(c.chartNo)} 件`, 'info');
+      if (f && f.hartwig >= 4) add('hartwig', `Hartwig ${f.hartwig} 級（獎勵）`, 'high');
       const marked = marks.has(c.id) ? marks.get(c.id) : c.marked;
       return Object.assign({}, c, { hints: flags, marked, notable: marked, serious: flags.some(x => x.level === 'high') });
     });
@@ -214,7 +221,49 @@
     };
   }
 
-  const api = { packCases, unpackCases, workbookCases, joinForms, monthOf, severityLevel, flagCases, summarize, toTsv, SERIOUS_LABEL };
+  // ---- meeting list (例會名單), one row per ticked case ----
+
+  const MEETING_HEADER = ['識別代碼', 'ICU', '病歷號', '通報者(200)', '員編', '發生日期', '通報日期', '通報藥品', '通報症狀', '撰寫人', '員編', '審核者', '員編'];
+  const MEETING_WIDTHS = [9, 5, 11, 12, 7, 10, 10, 9, 21, 8, 7, 8, 7];
+  // 員編 starts with the staff group: A 醫, B 護, C 藥.
+  const ROLE = { A: '醫', B: '護', C: '藥' };
+  const roleOf = id => ROLE[String(id || '').trim().charAt(0).toUpperCase()] || '';
+
+  // "2026-04-16" / "2026/4/16" -> "2026/4/16" (pad: "2026/04/16").
+  function slashDate(text, pad) {
+    const m = String(text || '').match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if (!m) return String(text || '').trim();
+    const p = n => (pad ? n.padStart(2, '0') : String(Number(n)));
+    return `${m[1]}/${p(m[2])}/${p(m[3])}`;
+  }
+
+  // 員編 by name, from the 通報者 HIS recorded (pharmacists key in most cases).
+  function staffIds(cases) {
+    const ids = new Map();
+    cases.forEach(c => { if (c.hisUser && c.hisUserId && !ids.has(c.hisUser)) ids.set(c.hisUser, c.hisUserId); });
+    return ids;
+  }
+
+  // Rows for the meeting list (array of arrays, header first, 單位主管 last).
+  // ICU is not recorded anywhere and is left blank; 通報日期 is the form's
+  // 表單提交日期. `allCases` (every workbook case) supplies the 員編 of names.
+  function meetingSheet(cases, { allCases = cases, reviewer = '', reviewerId = '' } = {}) {
+    const ids = staffIds(allCases);
+    const rows = cases.slice().sort((a, b) => a.id.localeCompare(b.id)).map(c => {
+      const f = c.form || {};
+      const writer = c.writer || f.writer || '';
+      const reporter = c.hisUser ? `${c.hisUser}${roleOf(c.hisUserId) ? `(${roleOf(c.hisUserId)})` : ''}` : '';
+      return [
+        c.id, '', c.chartNo, reporter, c.hisUserId || '',
+        slashDate(f.onset, false), slashDate(f.submitted, true),
+        P.splitCodes(c.drugCode).join('、'), f.symptoms || c.symptom || '',
+        writer, ids.get(writer) || '', reviewer, reviewerId,
+      ];
+    });
+    return [MEETING_HEADER, ...rows, [], ['單位主管：']];
+  }
+
+  const api = { meetingSheet, MEETING_WIDTHS, staffIds, packCases, unpackCases, workbookCases, joinForms, monthOf, severityLevel, flagCases, summarize, toTsv, SERIOUS_LABEL };
   if (inNode) module.exports = api;
   else root.ADRReview = api;
 })(typeof window !== 'undefined' ? window : globalThis);

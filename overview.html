@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon-overview.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2f6f73">
-  <link rel="stylesheet" href="style.css?v=20261125b">
+  <link rel="stylesheet" href="style.css?v=20261127f">
 </head>
 <body class="overview">
   <header>
@@ -36,13 +36,22 @@
           <label>到 <select id="toMonth" aria-label="結束月份"></select></label>
           <button type="button" class="secondary" data-range="1">本月</button>
           <button type="button" class="secondary" data-range="3">近 3 個月</button>
+          <button type="button" class="secondary" data-range="4">近 4 個月</button>
           <button type="button" class="secondary" data-range="12">近 12 個月</button>
         </span>
         <span class="actions">
+          <button id="meetingBtn" type="button" title="這段期間「已勾選」的案例，依例會名單格式存成 Excel">產生例會 Excel</button>
           <button id="phoneBtn" type="button" class="secondary">手機查看</button>
           <button id="copyBtn" type="button" class="secondary">複製表格</button>
           <button id="printBtn" type="button">列印</button>
         </span>
+      </div>
+
+      <div id="meetingPanel" class="ov-meeting no-print" hidden>
+        <label>審核者 <input id="reviewer" class="ov-input" autocomplete="off"></label>
+        <label>員編 <input id="reviewerId" class="ov-input short" autocomplete="off"></label>
+        <button id="meetingSave" type="button">存成 Excel</button>
+        <span id="meetingStatus" class="hint"></span>
       </div>
 
       <div class="stats">
@@ -72,6 +81,7 @@
       </div>
 
       <div class="controls no-print">
+        <button id="markHartwig" type="button" class="secondary" title="勾選這段期間 Hartwig 嚴重度 4 級以上（院內通報獎勵）的案例">勾選 Hartwig ≥4</button>
         <button id="markAll" type="button" class="secondary">全部勾選</button>
         <button id="markNone" type="button" class="secondary">全部取消</button>
         <label class="done-toggle"><input id="notableOnly" type="checkbox"> 只看已勾選</label>
@@ -108,11 +118,12 @@
   <script src="lib/xlsx.full.min.js?v=20261030"></script>
   <script src="dropdown.js?v=20261110b"></script>
   <script src="local.js?v=20261110"></script>
-  <script src="parse.js?v=20261123"></script>
-  <script src="workbook.js?v=20261123"></script>
-  <script src="forms.js?v=20261106"></script>
+  <script src="parse.js?v=20261127"></script>
+  <script src="workbook.js?v=20261127"></script>
+  <script src="forms.js?v=20261127c"></script>
   <script src="phonelink.js?v=20261125"></script>
-  <script src="review.js?v=20261125"></script>
-  <script src="overview.js?v=20261125b"></script>
+  <script src="pdfform.js?v=20261127d"></script>
+  <script src="review.js?v=20261127"></script>
+  <script src="overview.js?v=20261127"></script>
 </body>
 </html>
