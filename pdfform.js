@@ -242,7 +242,11 @@
     const key = name + '|' + bytes.length + '|' + modified;
     const map = cacheMap();
     if (!map.has(key)) {
-      map.set(key, await readPdf(bytes));
+      // A read that hangs (seen once on the user's PC) must not leave the
+      // page on 讀取中 forever with cases silently missing.
+      let timer;
+      const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('讀取逾時（超過 60 秒），請按「重新讀取」')), 60000); });
+      try { map.set(key, await Promise.race([readPdf(bytes), timeout])); } finally { clearTimeout(timer); }
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries([...map].slice(-300)))); } catch (e) { /* saves time only */ }
     }
     return map.get(key);

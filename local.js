@@ -23,6 +23,14 @@
     return run;
   }
 
+  // { exists, modified } of a file; an older helper answers 404 when missing.
+  async function stat(path) {
+    const res = await call('api/stat' + q(path));
+    if (!res) return { exists: false };
+    const info = res.headers.get('Content-Type') === 'application/json' ? await res.json() : {};
+    return Object.assign({ exists: true }, info);
+  }
+
   function notFound(path) {
     const e = new Error(path + ' not found');
     e.name = 'NotFoundError';
@@ -61,9 +69,9 @@
       },
       // The day it was last saved, without downloading it.
       async modified() {
-        const res = await call('api/stat' + q(path));
-        if (!res) throw notFound(path);
-        return (await res.json()).modified;
+        const info = await stat(path);
+        if (!info.exists) throw notFound(path);
+        return info.modified;
       },
       async createWritable() {
         const parts = [];
@@ -90,12 +98,15 @@
       async requestPermission() { return 'granted'; },
       async getDirectoryHandle(child, { create = false } = {}) {
         const p = join(path, child);
-        if (!await call('api/dir' + q(p) + (create ? '&create=1' : ''))) throw notFound(p);
+        const res = await call('api/dir' + q(p) + (create ? '&create=1' : ''));
+        // An older helper answers 404; this one says {"exists": false}.
+        const info = res && res.headers.get('Content-Type') === 'application/json' ? await res.json() : { exists: !!res };
+        if (!info.exists) throw notFound(p);
         return dirHandle(p, child);
       },
       async getFileHandle(child, { create = false } = {}) {
         const p = join(path, child);
-        if (!create && !await call('api/stat' + q(p))) throw notFound(p);
+        if (!create && !(await stat(p)).exists) throw notFound(p);
         return fileHandle(p, child);
       },
       async removeEntry(child) {

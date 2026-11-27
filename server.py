@@ -253,15 +253,18 @@ class Handler(SimpleHTTPRequestHandler):
             path = self.target(url.query)
             if url.path == '/api/stat':
                 if not os.path.isfile(path):
-                    return self.reply(404)
+                    # Asking whether a file exists yet is not an error.
+                    return self.reply(200, '{"exists": false}', 'application/json')
                 # When it was last saved, without sending the file.
-                return self.reply(200, json.dumps({'modified': int(os.path.getmtime(path) * 1000)}), 'application/json')
+                return self.reply(200, json.dumps({'exists': True, 'modified': mtime_ms(path)}), 'application/json')
             if url.path == '/api/dir':
                 if not os.path.isdir(path):
                     if 'create=1' not in url.query:
-                        return self.reply(404)
+                        # Pages probe optional folders (ADR_cards): not an
+                        # error, so no 404 in the browser's console.
+                        return self.reply(200, '{"exists": false}', 'application/json')
                     os.makedirs(path, exist_ok=True)
-                return self.reply(200)
+                return self.reply(200, '{"exists": true}', 'application/json')
             if url.path == '/api/list':
                 names = sorted(os.listdir(path)) if os.path.isdir(path) else []
                 return self.reply(200, json.dumps(names), 'application/json')

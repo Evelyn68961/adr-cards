@@ -130,7 +130,8 @@ test('setWriters on a sheet without a header row labels the empty row above', ()
   const out = W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師']])).bytes;
   const sheet = XLSX.read(out, { type: 'array' }).Sheets['202610'];
   assert.deepEqual([sheet.J1.v, sheet.A2.v, sheet.J2.v], ['撰寫人', '1151001', '王藥師']);
-  assert.equal(sheet.A1, undefined);
+  // The rest of the empty title row gets its titles too.
+  assert.deepEqual([sheet.A1.v, sheet.I1.v], ['識別碼', '得知日期']);
   assert.equal(W.readLedger(XLSX, P, out).months['202610'].rows[0].writer, '王藥師');
 });
 
@@ -330,4 +331,22 @@ test('a workbook with every known trap saved 10 times keeps every part the same 
   }
   assert.ok(bytes.length < 40000, `file is ${bytes.length} bytes`);
   assert.ok(themeOf(bytes).toString('utf8').includes('typeface="ＭＳ Ｐゴシック"'));
+});
+
+test('blank titles in a month sheet are filled in on save, existing ones kept', () => {
+  // Like the user's 202610: row 1 only had J1 = 撰寫人.
+  const cards = P.assignIds(P.parseText(row(1, '2026/10/17 10:52:08')).rows, 1);
+  const wb = XLSX.read(W.appendRows(XLSX, P, null, cards).bytes, { type: 'array' });
+  const ws = wb.Sheets['202610'];
+  for (const c of 'ABCDEFGHI') delete ws[c + '1'];
+  ws.J1 = { t: 's', v: '撰寫人' };
+  ws.F1 = { t: 's', v: '我的嚴重度' };   // a title the user typed stays
+  ws['!ref'] = 'A1:J2';
+  const bytes = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  const out = W.setTfdaDates(XLSX, bytes, new Map([['1151001', '2026/11/02']])).bytes;
+  const head = XLSX.utils.sheet_to_json(XLSX.read(out, { type: 'array' }).Sheets['202610'], { header: 1, defval: '' })[0];
+  assert.deepEqual(head.slice(0, 9), ['識別碼', '病歷號', '姓名', '藥碼', '藥名', '我的嚴重度', '通報來源', '症狀', '得知日期']);
+  assert.equal(head[9], '撰寫人');
+  assert.equal(head[13], 'TFDA通報日期');
+  assert.equal(head[10] || '', '');   // 值得注意 unused: no title added
 });

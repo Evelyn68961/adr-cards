@@ -56,8 +56,36 @@
     });
   }
 
+  // Column titles of a month sheet, A–N.
+  const TITLES = ['識別碼', '病歷號', '姓名', '藥碼', '藥名', '嚴重度', '通報來源', '症狀', '得知日期',
+    '撰寫人', '值得注意', '通報者', '通報者員編', 'TFDA通報日期'];
+
+  // Fills blank titles in a month sheet's title row (the row just above the
+  // first case), so a sheet whose row 1 only said 撰寫人 gets its other
+  // titles too. Titles already there are never changed; J–N are only added
+  // once a case uses them.
+  function fillTitles(XLSX, ws) {
+    if (!ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const value = (r, c) => { const cell = ws[XLSX.utils.encode_cell({ r, c })]; return cell && cell.v != null ? String(cell.v).trim() : ''; };
+    let first = -1;
+    for (let r = range.s.r; r <= range.e.r && first < 0; r++) if (/^\d{9}[A-Z]$/i.test(value(r, 1))) first = r;
+    const head = first - 1;
+    if (head < range.s.r || /^\d{9}[A-Z]$/i.test(value(head, 1))) return;
+    TITLES.forEach((title, c) => {
+      if (value(head, c)) return;
+      if (c >= 9) {
+        let used = false;
+        for (let r = first; r <= range.e.r && !used; r++) used = !!value(r, c);
+        if (!used) return;
+      }
+      ws[XLSX.utils.encode_cell({ r: head, c })] = { t: 's', v: title };
+    });
+  }
+
   function save(XLSX, wb) {
     fixTheme(wb);
+    wb.SheetNames.filter(name => /^\d{6}$/.test(name)).forEach(name => fillTitles(XLSX, wb.Sheets[name]));
     wb.SheetNames.forEach(name => {
       const ws = wb.Sheets[name];
       if (ws['!cols'] && ws['!ref']) {

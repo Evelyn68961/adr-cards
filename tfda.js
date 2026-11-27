@@ -255,9 +255,30 @@
         return;
       }
       setCases(F.mergeCases(lists), lines);
+      keepPdfDates();
     } catch (e) {
       showSource(['讀取失敗：' + e.message]);
     }
+  }
+
+  // A 通報 PDF's date is its file date, which copying or restoring the
+  // files would change: the first time it is seen, it is written into
+  // column N (TFDA通報日期), which then counts from there on.
+  function keepPdfDates() {
+    const fresh = new Map([...pdfDates].filter(([id]) => !tfdaDates.has(id) && reported.has(id)));
+    if (!fresh.size) return;
+    window.ADRLocal.serial(async () => {
+      try {
+        const handle = await folder.getFileHandle(WORKBOOK_NAME);
+        const result = W.setTfdaDates(XLSX, new Uint8Array(await (await window.ADRLocal.workbookFile(handle)).arrayBuffer()), fresh);
+        if (result.changed.length) {
+          const w = await handle.createWritable();
+          await w.write(result.bytes);
+          await w.close();
+        }
+        fresh.forEach((day, id) => tfdaDates.set(id, day));
+      } catch (e) { /* tried again on the next visit */ }
+    });
   }
 
   // Picked files are read at once and, with the desktop helper, saved into
