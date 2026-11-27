@@ -152,26 +152,32 @@
 
   const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
   let ready = null;
+  const LOAD_TIMEOUT = 20000;
 
   function loadPdfJs() {
     if (!ready) {
+      const fail = () => new Error('PDF 讀取元件無法載入（網路不通或被擋）');
       ready = (async () => {
         if (!root.pdfjsLib) {
           await new Promise((resolve, reject) => {
             const s = document.createElement('script');
             s.src = PDFJS + 'pdf.min.js';
             s.onload = resolve;
-            s.onerror = () => reject(new Error('PDF 讀取元件無法載入（沒有網路？）'));
+            s.onerror = () => reject(fail());
+            // A blocked site can leave the request hanging: give up after a while.
+            setTimeout(() => reject(fail()), LOAD_TIMEOUT);
             document.head.appendChild(s);
           });
         }
         // A worker from another site must be started from a local copy.
-        const res = await fetch(PDFJS + 'pdf.worker.min.js');
+        const res = await fetch(PDFJS + 'pdf.worker.min.js', { signal: AbortSignal.timeout(LOAD_TIMEOUT) }).catch(() => { throw fail(); });
         if (!res.ok) throw new Error('PDF 讀取元件無法載入');
         root.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([await res.text()], { type: 'text/javascript' }));
         return root.pdfjsLib;
       })();
-      ready.catch(() => { ready = null; });
+      // A failure stands for the rest of this visit (no 20 s wait per PDF);
+      // retry() lets 重新讀取 try again.
+      ready.catch(() => {});
     }
     return ready;
   }
@@ -215,7 +221,9 @@
     return parsePages(pages);
   }
 
-  const api = { parsePages, readPdf };
+  const retry = () => { ready = null; };
+
+  const api = { parsePages, readPdf, retry };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRPdfForm = api;
 })(typeof window !== 'undefined' ? window : globalThis);

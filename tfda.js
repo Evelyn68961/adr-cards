@@ -66,13 +66,28 @@
   // Cases in one Excel file, and what was found, to explain an empty result.
   // A printed form gives one case; reading draws every page, so each file is
   // read once per visit.
-  const pdfCache = new Map();
+  // Reading a printed form draws every page, so each PDF is read once: the
+  // result is kept on this PC by file name and size (PDF_CACHE).
+  const PDF_CACHE = 'adr-pdf-cases-v1';
+  const pdfCache = new Map(Object.entries((() => {
+    try { return JSON.parse(localStorage.getItem(PDF_CACHE) || '{}'); } catch (e) { return {}; }
+  })()));
+  function keepPdfCache() {
+    try {
+      const entries = [...pdfCache].slice(-300);
+      localStorage.setItem(PDF_CACHE, JSON.stringify(Object.fromEntries(entries)));
+    } catch (e) { /* only saves time next visit */ }
+  }
+  const pdfResult = c => ({
+    cases: c && /^\d{7}$/.test(c.id) ? [c] : [],
+    stats: { headers: c ? 1 : 0, rows: c ? 1 : 0, noId: c && !/^\d{7}$/.test(c.id) ? 1 : 0 },
+  });
   async function readPdfFile(key, bytes) {
     if (!pdfCache.has(key)) {
-      const c = await window.ADRPdfForm.readPdf(bytes);
-      pdfCache.set(key, { cases: c && /^\d{7}$/.test(c.id) ? [c] : [], stats: { headers: c ? 1 : 0, rows: c ? 1 : 0, noId: c && !/^\d{7}$/.test(c.id) ? 1 : 0 } });
+      pdfCache.set(key, await window.ADRPdfForm.readPdf(bytes));
+      keepPdfCache();
     }
-    return pdfCache.get(key);
+    return pdfResult(pdfCache.get(key));
   }
 
   async function readAny(name, bytes) {
@@ -97,7 +112,7 @@
 
   // Every Excel file in the ADR folder and its ADR_<yyyMM> folders except the
   // workbook itself; a file counts as a report form by its columns, not its name.
-  async function loadFromFolder() {
+  async function findFiles() {
     const found = [];
     const scan = async (dir, prefix) => {
       for await (const name of dir.keys()) {
@@ -108,19 +123,37 @@
     for await (const name of folder.keys()) {
       if (/^ADR_\d{5}$/.test(name)) await scan(await folder.getDirectoryHandle(name), name + '\\');
     }
-    const lists = [];
-    const lines = [];
-    for (const f of found) {
+    return found;
+  }
+
+  async function readFound(files, lists, lines, onEach = () => {}) {
+    for (const [i, f] of files.entries()) {
       try {
         const file = await (await f.dir.getFileHandle(f.name)).getFile();
-        const result = await readAny(f.name, new Uint8Array(await file.arrayBuffer()));
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const result = await readAny(f.name, bytes);
         if (result.cases.length) lists.push(result.cases);
         if (result.cases.length || FORM_FILE.test(f.name) || result.stats.headers) lines.push(describe(f.path, result));
       } catch (e) {
-        lines.push({ ok: false, text: `${f.path}：無法讀取（${e.message}）` });
+        lines.push({ ok: false, text: `${f.path}：無法讀取（${e.message}）`, path: f.path, reason: e.message });
       }
+      onEach(i + 1);
     }
+  }
+
+  // Excel exports first; `onPartial(lists, lines, note)` shows those cases at
+  // once, while PDFs not read before are read in the background.
+  async function loadFromFolder(onPartial = () => {}) {
+    const found = await findFiles();
     reported = await readReported();
+    const lists = [];
+    const lines = [];
+    await readFound(found.filter(f => !PDF.test(f.name)), lists, lines);
+    const pdfs = found.filter(f => PDF.test(f.name));
+    if (pdfs.length) {
+      onPartial(lists, lines, `讀取 PDF 通報表中（0/${pdfs.length}）…`);
+      await readFound(pdfs, lists, lines, n => n < pdfs.length && onPartial(lists, lines, `讀取 PDF 通報表中（${n}/${pdfs.length}）…`));
+    }
     return { lists, lines };
   }
 
@@ -217,6 +250,7 @@
       copyable(h.license), el('div', { class: 'tf-hint' }, `${h.zh}｜${h.en}｜${h.company}`)));
   }
 
+  let loadToken = 0;
   async function reload() {
     $('sourceStatus').textContent = '讀取中…';
     try {
@@ -225,7 +259,11 @@
         showSource(['請按「上傳通報表」，選取「2.5.6－藥品不良反應 (ADR) 通報表」Excel。']);
         return;
       }
-      const { lists, lines } = await loadFromFolder();
+      const token = ++loadToken;
+      const { lists, lines } = await loadFromFolder((l, ln, note) => {
+        if (token === loadToken) setCases(F.mergeCases(l), ln, note);
+      });
+      if (token !== loadToken) return;
       if (!lines.length) {
         showSource(['ADR 資料夾和 ADR_yyyMM 月份資料夾裡找不到通報表 Excel。請按「上傳通報表」選取匯出的檔案。']);
         return;
@@ -274,6 +312,20 @@
     $('sourceStatus').replaceChildren(...lines.map(t => el('div', {}, t)));
   }
 
+  // Files that failed for the same reason (e.g. the PDF reader is blocked) on one line.
+  function groupBad(bad) {
+    const byReason = new Map();
+    const out = [];
+    for (const l of bad) {
+      if (!l.reason) { out.push(l.text); continue; }
+      if (!byReason.has(l.reason)) byReason.set(l.reason, []);
+      byReason.get(l.reason).push(l.path);
+    }
+    byReason.forEach((paths, reason) => out.push(paths.length > 1
+      ? `${paths.length} 個檔案無法讀取（${reason}）：${paths.map(p => p.split('\\').pop()).join('、')}` : `${paths[0]}：無法讀取（${reason}）`));
+    return out;
+  }
+
   // One summary line; files that gave nothing are listed, the rest folded.
   function setCases(list, lines, note = '') {
     cases = list;
@@ -281,7 +333,7 @@
     const good = lines.filter(l => l.ok);
     $('sourceStatus').replaceChildren(
       el('div', {}, `共 ${list.length} 案，讀自 ${good.length} 個檔案` + (note ? `　${note}` : '')),
-      ...bad.map(l => el('div', { class: 'source-warn' }, l.text)),
+      ...groupBad(bad).map(text => el('div', { class: 'source-warn' }, text)),
       good.length ? el('details', { class: 'source-files' }, el('summary', {}, '檔案明細'), ...good.map(l => el('div', {}, l.text))) : null);
     const months = [...new Set(list.map(F.monthOf))].sort().reverse();
     const sel = $('month');
@@ -572,7 +624,7 @@
   // ---- wiring ----
 
   $('month').addEventListener('change', () => { current = null; renderList(); });
-  $('reloadBtn').addEventListener('click', reload);
+  $('reloadBtn').addEventListener('click', () => { window.ADRPdfForm.retry(); reload(); });
   $('fileInput').addEventListener('change', e => {
     const files = [...e.target.files];
     e.target.value = '';
