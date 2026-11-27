@@ -258,7 +258,7 @@
       const reporter = c.hisUser ? `${c.hisUser}${roleOf(c.hisUserId) ? `(${roleOf(c.hisUserId)})` : ''}` : '';
       return [
         c.id, '', c.chartNo, reporter, c.hisUserId || '',
-        slashDate(f.onset, false), slashDate(c.tfdaDate || f.submitted, true),
+        slashDate(f.onset, false), slashDate(c.tfdaDate || c.pdfDate || f.submitted, true),
         P.splitCodes(c.drugCode).join('、'), f.symptoms || c.symptom || '',
         writer, ids.get(writer) || '', reviewer, reviewerId,
       ];

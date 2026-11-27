@@ -232,7 +232,10 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.hospital(url.query)
             path = self.target(url.query)
             if url.path == '/api/stat':
-                return self.reply(200 if os.path.isfile(path) else 404)
+                if not os.path.isfile(path):
+                    return self.reply(404)
+                # When it was last saved, without sending the file.
+                return self.reply(200, json.dumps({'modified': int(os.path.getmtime(path) * 1000)}), 'application/json')
             if url.path == '/api/dir':
                 if not os.path.isdir(path):
                     if 'create=1' not in url.query:
@@ -246,7 +249,15 @@ class Handler(SimpleHTTPRequestHandler):
                 if not os.path.isfile(path):
                     return self.reply(404)
                 with open(path, 'rb') as f:
-                    return self.reply(200, f.read(), 'application/octet-stream')
+                    data = f.read()
+                # The page reads the date a file was saved (e.g. ADR_<識別碼>_通報.pdf).
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Length', str(len(data)))
+                self.send_header('X-File-Modified', str(int(os.path.getmtime(path) * 1000)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             return self.reply(404)
         except Exception as e:
             return self.reply(500, f'{type(e).__name__}: {e}')

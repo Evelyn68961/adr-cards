@@ -41,7 +41,14 @@
       async getFile() {
         const res = await call('api/file' + q(path));
         if (!res) throw notFound(path);
-        return res.blob();
+        const lastModified = Number(res.headers.get('X-File-Modified')) || Date.now();
+        return new File([await res.blob()], name, { lastModified });
+      },
+      // The day it was last saved, without downloading it.
+      async modified() {
+        const res = await call('api/stat' + q(path));
+        if (!res) throw notFound(path);
+        return (await res.json()).modified;
       },
       async createWritable() {
         const parts = [];

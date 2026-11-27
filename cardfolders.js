@@ -76,5 +76,31 @@
     return [...found.values()];
   }
 
-  root.ADRCardFolders = { layout, dirsOf, dirFor, namesOf, allCards, CARDS };
+  // The PDF saved after reporting a case to TFDA, ADR_<識別碼>_通報.pdf, in the
+  // month folder (or its ADR_cards): Map(識別碼 -> "2026/11/04", the day it
+  // was saved). Its being there means the case was reported.
+  const REPORT_PDF = /^ADR_(\d{7})_通報\.pdf$/i;
+  async function reportDates(folder) {
+    const dates = new Map();
+    const day = d => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    for await (const name of folder.keys()) {
+      if (!MONTH.test(name)) continue;
+      const month = await child(folder, name);
+      for (const dir of [month, await child(month, CARDS)].filter(Boolean)) {
+        for await (const file of dir.keys()) {
+          const m = file.match(REPORT_PDF);
+          if (!m || dates.has(m[1])) continue;
+          try {
+            const handle = await dir.getFileHandle(file);
+            // The helper says when without sending the file; the browser's own handle gives a lazy File.
+            const time = handle.modified ? await handle.modified() : (await handle.getFile()).lastModified;
+            dates.set(m[1], day(new Date(time)));
+          } catch (e) { /* unreadable: skip */ }
+        }
+      }
+    }
+    return dates;
+  }
+
+  root.ADRCardFolders = { layout, dirsOf, dirFor, namesOf, allCards, reportDates, CARDS };
 })(window);

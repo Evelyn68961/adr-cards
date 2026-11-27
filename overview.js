@@ -73,6 +73,9 @@
       const book = await window.ADRLocal.workbookFile(await folder.getFileHandle(WORKBOOK_NAME));
       cases = R.workbookCases(XLSX, await bytesOf(book));
       names.push(WORKBOOK_NAME);
+      // The day each case's ADR_<識別碼>_通報.pdf was saved: 通報日期 on the meeting list.
+      const days = await window.ADRCardFolders.reportDates(folder).catch(() => new Map());
+      cases.forEach(c => { c.pdfDate = days.get(c.id) || ''; });
     } catch (e) {
       if (e.name !== 'NotFoundError') throw e;
     }

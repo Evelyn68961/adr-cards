@@ -179,6 +179,9 @@ For entering finished report forms into the TFDA online ADR form.
   plus up to two alternatives), found by product name in `data/tfda-licenses.json`, a trimmed
   copy of TFDA's public licence open data (valid finished-product licences). Refresh it with
   `node tools/build-licenses.js 36_3.json` (instructions in the script).
+- **已通報** also comes from the PDF saved after reporting: a case with `ADR_<識別碼>_通報.pdf` in its
+  month folder (or its `ADR_cards`) counts as reported on the day that file was saved, with no
+  tick needed; the meeting list uses that day as 通報日期 unless a date was ticked here.
 - **已完成 TFDA 通報** records the day the case was reported to TFDA (today; the date box next to
   it can change it) in column N (TFDA通報日期) of `ADR通報.xlsx`; the case list shows 已通報 11/27,
   and the meeting list uses it as 通報日期. Unticking clears it.

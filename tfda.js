@@ -23,6 +23,7 @@
   let licenseIndex = null;
   let reported = new Map();  // 識別碼 -> 藥碼 recorded in ADR通報.xlsx (HIS)
   let tfdaDates = new Map(); // 識別碼 -> day reported to TFDA (ADR通報.xlsx column N)
+  let pdfDates = new Map();  // 識別碼 -> day ADR_<識別碼>_通報.pdf was saved
   const hospitalCache = new Map();
 
   async function loadLicenses() {
@@ -126,6 +127,7 @@
   async function loadFromFolder(onPartial = () => {}) {
     const found = await findFiles();
     reported = await readReported();
+    try { pdfDates = await window.ADRCardFolders.reportDates(folder); } catch (e) { pdfDates = new Map(); }
     const lists = [];
     const lines = [];
     await readFound(found.filter(f => !PDF.test(f.name)), lists, lines);
@@ -343,7 +345,7 @@
         onclick: () => select(c),
       }, el('strong', {}, c.id), el('span', {}, drug ? drug.value : c.symptoms),
       dupIds.has(c.id) ? el('span', { class: 'case-flag' }, '識別碼重複') : null,
-      isDone(c) ? el('span', { class: 'case-flag ok' }, tfdaDates.has(c.id) ? `已通報 ${tfdaDates.get(c.id).replace(/^\d{4}\//, '')}` : '已通報') : null);
+      isDone(c) ? el('span', { class: 'case-flag ok' }, reportDay(c) ? `已通報 ${reportDay(c).replace(/^\d{4}\//, '')}` : '已通報') : null);
     }));
     // One click: a 檢驗資料 PDF for every case of the month.
     const empty = list.filter(c => !F.hasLabs(c));
@@ -438,7 +440,9 @@
   }
 
   const slashDay = d => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-  const isDone = c => tfdaDates.has(c.id) || done.has(caseKey(c));
+  // Reported: a date ticked here (column N), else the saved ADR_<識別碼>_通報.pdf.
+  const reportDay = c => tfdaDates.get(c.id) || pdfDates.get(c.id) || '';
+  const isDone = c => !!reportDay(c) || done.has(caseKey(c));
 
   // Saves the TFDA 通報 day ('' clears it) into ADR通報.xlsx column N.
   async function recordTfda(c, day) {
@@ -469,7 +473,8 @@
     const doneBox = el('input', { type: 'checkbox' });
     doneBox.checked = isDone(c);
     const dayBox = el('input', { class: 'tfda-day', placeholder: 'YYYY/MM/DD', autocomplete: 'off', 'aria-label': 'TFDA 通報日期' });
-    dayBox.value = tfdaDates.get(c.id) || '';
+    dayBox.value = reportDay(c);
+    if (pdfDates.has(c.id) && !tfdaDates.has(c.id)) dayBox.title = `ADR_${c.id}_通報.pdf 的存檔日期`;
     dayBox.hidden = !doneBox.checked;
     doneBox.addEventListener('change', () => {
       if (doneBox.checked && !dayBox.value) dayBox.value = slashDay(new Date());
