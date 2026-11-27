@@ -8,7 +8,6 @@
   const PAGE_MM = { w: 297, h: 210, cardW: 138, cardH: 94, gap: 1 };
   const DPI = 250;
   const CARD_FILE = /^ADR_(\d{7})\.png$/i;
-  const MONTH_DIR = /^ADR_(\d{5})$/;
 
   const $ = id => document.getElementById(id);
   let folder = null;
@@ -41,15 +40,9 @@
     }
     $('folderStatus').textContent = `已連結：${folder.name}`;
     $('folderStatus').classList.add('linked');
-    for await (const name of folder.keys()) {
-      const m = name.match(MONTH_DIR);
-      if (!m) continue;
-      const dir = await folder.getDirectoryHandle(name);
-      for await (const file of dir.keys()) {
-        const c = file.match(CARD_FILE);
-        if (!c) continue;
-        cards.set(c[1], { id: c[1], month: m[1], file: async () => (await dir.getFileHandle(file)).getFile() });
-      }
+    // In the month folders, their ADR_cards folders, or a top ADR_cards folder.
+    for (const c of await window.ADRCardFolders.allCards(folder)) {
+      cards.set(c.id, { id: c.id, month: c.month, file: async () => (await c.dir.getFileHandle(c.name)).getFile() });
     }
   }
 

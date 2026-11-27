@@ -55,6 +55,13 @@ folder built in, so nothing ever has to be linked or allowed.
 
 Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still work as downloads.
 
+## Where card images go
+
+Card images (`ADR_<識別碼>.png`) and card PDFs can be kept in the month folder, or in an `ADR_cards`
+folder inside each month folder (`ADR_11511\ADR_cards\`), or in a top `ADR_cards` folder (flat
+or with month folders). Cards are found in any of these (已製卡, numbering, 卡片列印), and new ones
+go where the cards already are, e.g. a new month gets its own `ADR_yyyMM\ADR_cards\`.
+
 ## Writing to the workbook
 
 - Rows go to the sheet for their month (`202610`, `202611`, …), created if missing.

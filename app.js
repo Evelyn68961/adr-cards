@@ -2,6 +2,7 @@
   'use strict';
   const P = window.ADRParse;
   const W = window.ADRWorkbook;
+  const CF = window.ADRCardFolders;
 
   const FIELDS = [
     { key: 'id', label: '識別碼' },
@@ -364,8 +365,8 @@
       else msgs.push({ cls: 'warn', text: '瀏覽器擋住了新分頁，請改用下方連結開啟 PDF。' });
       msgs.push({ cls: 'ok', text: `PDF：${list.length} 張卡片，共 ${Math.ceil(list.length / CARDS_PER_PAGE)} 頁 A4`, href: url, download: name });
       if (folder && await folder.requestPermission({ mode: 'readwrite' }) === 'granted') {
-        await writeFile(await subfolder('ADR_' + list[0].id.slice(0, 5), true), name, blob);
-        msgs.push({ cls: 'ok', text: `已儲存到 ADR_${list[0].id.slice(0, 5)}\\${name}` });
+        await writeFile(await CF.dirFor(folder, list[0].id.slice(0, 5)), name, blob);
+        msgs.push({ cls: 'ok', text: `已儲存 ${name}（和卡片圖檔放在一起）` });
       }
     } catch (e) {
       if (tab) tab.close();
@@ -476,11 +477,6 @@
     $('linkBtn').textContent = '重新連結';
   }
 
-  async function subfolder(name, create) {
-    try { return await folder.getDirectoryHandle(name, { create }); }
-    catch (e) { if (e.name === 'NotFoundError') return null; throw e; }
-  }
-
   async function existingFile(dir, name) {
     try { return await dir.getFileHandle(name); }
     catch (e) { if (e.name === 'NotFoundError') return null; throw e; }
@@ -527,12 +523,7 @@
         currentMonthKey(),
       ]);
       const found = {};
-      for (const key of keys) {
-        const dir = await subfolder('ADR_' + key, false);
-        const names = new Set();
-        if (dir) for await (const name of dir.keys()) names.add(name);
-        found[key] = names;
-      }
+      for (const key of keys) found[key] = await CF.namesOf(folder, key);
       if (token !== ledgerToken || saving) return;
       ledger = next;
       pngs = found;
@@ -760,8 +751,9 @@
       // 2. PNGs: always write the card as it is now, replacing an older image.
       const saved = [];
       const replaced = [];
+      const style = await CF.layout(folder);
       for (const card of cards) {
-        const dir = await subfolder('ADR_' + card.id.slice(0, 5), true);
+        const dir = await CF.dirFor(folder, card.id.slice(0, 5), style);
         const name = `ADR_${card.id}.png`;
         (await existingFile(dir, name) ? replaced : saved).push(name);
         await writeFile(dir, name, await cardBlob(card));
@@ -774,9 +766,10 @@
       const leftBehind = cards.flatMap(c => [c.previousId, c.staleId]).filter(id => id && !ids.includes(id));
       for (const oldId of [...new Set(leftBehind)]) {
         const name = `ADR_${oldId}.png`;
-        const dir = await subfolder('ADR_' + oldId.slice(0, 5), false);
         try {
-          if (dir && await existingFile(dir, name)) { await dir.removeEntry(name); gone.push(name); }
+          for (const dir of await CF.dirsOf(folder, oldId.slice(0, 5))) {
+            if (await existingFile(dir, name)) { await dir.removeEntry(name); gone.push(name); }
+          }
         } catch (e) {
           msgs.push({ cls: 'warn', text: `無法刪除 ${name}，請自行刪除：${e.message}` });
         }
