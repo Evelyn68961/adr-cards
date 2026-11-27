@@ -259,3 +259,20 @@ test('a case saved before under a stale 登記日 is moved to its real month', (
   assert.deepEqual(book.SheetNames, ['202611']);
   assert.deepEqual(sheet11(out.bytes), [['1151101', '000000001Z'], ['1151110', '000000777J']]);
 });
+
+test('a sheet whose used area Excel stretched to row 1,048,576 saves quickly', () => {
+  // Formatting on whole rows makes Excel report e.g. A1:N1048576; walking
+  // that area cell by cell used ~500 MB per save and crashed the page.
+  const cards = P.assignIds(P.parseText(row(1, '2026/10/17 10:52:08')).rows, 1);
+  const wb = XLSX.read(W.appendRows(XLSX, P, null, cards).bytes, { type: 'array' });
+  const old = XLSX.utils.aoa_to_sheet([P.SHEET_HEADER, ['1150101', '000000009Z', 'Y', 'A', 'B', '1', 's', 'x', '1/1/26 9:00']]);
+  old['!ref'] = 'A1:N1048576';
+  XLSX.utils.book_append_sheet(wb, old, '202601');
+  const bytes = new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }));
+  const start = Date.now();
+  const out = W.setTfdaDates(XLSX, bytes, new Map([['1150101', '2026/11/27']]));
+  assert.deepEqual(out.changed, ['1150101']);
+  assert.ok(Date.now() - start < 2000, `took ${Date.now() - start} ms`);
+  assert.equal(XLSX.read(out.bytes, { type: 'array' }).Sheets['202601']['!ref'], 'A1:N2');
+  assert.ok(W.readLedger(XLSX, P, bytes).months['202601']);
+});

@@ -7,7 +7,28 @@
   const DATE_FORMAT = 'm/d/yy h:mm';
 
   function load(XLSX, bytes) {
-    return XLSX.read(bytes, { type: 'array', cellDates: true, cellStyles: true, cellNF: true });
+    const wb = XLSX.read(bytes, { type: 'array', cellDates: true, cellStyles: true, cellNF: true });
+    wb.SheetNames.forEach(name => fitRange(XLSX, wb.Sheets[name]));
+    return wb;
+  }
+
+  // Excel can stretch a sheet's used area far past its data (formatting on
+  // whole rows or columns, e.g. A1:N1048576). Reading that area cell by cell
+  // took seconds and hundreds of MB per save, enough to crash the page
+  // (STATUS_BREAKPOINT); the area is cut back to the cells that hold data.
+  function fitRange(XLSX, ws) {
+    if (!ws || !ws['!ref']) return;
+    let s = null, e = null;
+    for (const key of Object.keys(ws)) {
+      if (key[0] === '!') continue;
+      const cell = ws[key];
+      if (!cell || cell.v == null || cell.v === '') continue;
+      const { r, c } = XLSX.utils.decode_cell(key);
+      if (!s) { s = { r, c }; e = { r, c }; continue; }
+      s = { r: Math.min(s.r, r), c: Math.min(s.c, c) };
+      e = { r: Math.max(e.r, r), c: Math.max(e.c, c) };
+    }
+    if (s) ws['!ref'] = XLSX.utils.encode_range({ s, e });
   }
 
   // Every write goes through here. A "rest of the columns" width rule (e.g.
@@ -92,6 +113,7 @@
   // stays with the first; the second gets a new number on the next save.
   function readLedger(XLSX, P, bytes) {
     const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
+    wb.SheetNames.forEach(name => fitRange(XLSX, wb.Sheets[name]));
     const months = {};
     const ids = new Map();
     const owners = new Map();
@@ -322,7 +344,7 @@
   // TFDA通報日期 (column N): Map(識別碼 -> "2026/11/27", '' clears).
   const setTfdaDates = (XLSX, bytes, dates) => setColumn(XLSX, bytes, TFDA_COL, TFDA, dates);
 
-  const api = { appendRows, readLedger, setWriters, setNotes, setTfdaDates, NOTE_COL, TFDA_COL, MARKED };
+  const api = { fitRange, appendRows, readLedger, setWriters, setNotes, setTfdaDates, NOTE_COL, TFDA_COL, MARKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRWorkbook = api;
 })(typeof window !== 'undefined' ? window : globalThis);
