@@ -29,10 +29,17 @@ folder built in, so nothing ever has to be linked or allowed.
   found, or there is no internet. Git is looked for on the PATH and in the usual Git for Windows,
   Cmder and GitHub Desktop folders. The page links show the version being served, and the
   reason in red when the last update was skipped or failed (also in `update.log`).
+- **Guards ADR通報.xlsx against growing by itself:** a save that would make it more than 1.5×
+  its size plus 200 KB, or over 5 MB, is refused (the old file is kept, the page says
+  「存檔異常…」, `update.log` notes it), and a backup that more than doubles is noted in
+  `update.log`. Two bugs grew the file save after save until the page crashed: width entries
+  for all 16,384 columns, and the theme's East Asian font names being re-encoded on every save
+  (each non-ASCII byte doubled; fixed in `workbook.js`, and undone in old files).
 - **Repairs an oversized workbook:** an older version saved every month sheet with width entries
   for all 16,384 columns, uncompressed (~1 MB per sheet; a 30 MB `ADR通報.xlsx` crashed every save
-  in the browser). On start the helper cuts those entries back to columns A–Z and stores the file
-  compressed, after copying it to `backups\`; cells are untouched. `update.log` says what it did.
+  in the browser). On start (and when a page finds the file over 4 MB) the helper cuts those
+  entries back to columns A–Z, repairs a garbled theme, and stores the file compressed, after
+  copying it to `backups\`; cells are untouched. `update.log` says what it did.
   Saves from the page are compressed too.
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.

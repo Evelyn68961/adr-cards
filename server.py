@@ -43,7 +43,14 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 def backup(path):
     os.makedirs(BACKUP_DIR, exist_ok=True)
     stem, ext = os.path.splitext(os.path.basename(path))
+    previous = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith(stem + '_'))
     shutil.copy2(path, os.path.join(BACKUP_DIR, f'{stem}_{time.strftime("%Y%m%d-%H%M%S")}{ext}'))
+    # The two bloat bugs showed in the backups for weeks: say so when one doubles.
+    if previous:
+        last = os.path.getsize(os.path.join(BACKUP_DIR, previous[-1]))
+        now = os.path.getsize(path)
+        if now > 100_000 and now > 2 * last:
+            log_repair(f'注意：{os.path.basename(path)} 由 {last // 1024} KB 變成 {now // 1024} KB（比上一份備份大一倍以上）')
     old = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith(stem + '_'))
     for f in old[:-BACKUPS_KEPT]:
         os.remove(os.path.join(BACKUP_DIR, f))
@@ -77,12 +84,50 @@ def slim_cols(xml):
     return xml[:m.start()] + body + xml[m.end():]
 
 
+# Saves of ADR通報.xlsx that grow it suddenly are refused: no real batch of
+# cases adds this much, so it means a bug like the two that bloated the file
+# save after save (column widths, then the theme) until the page crashed.
+WORKBOOK_CAP = 5_000_000
+
+
+def too_big(path, new_size):
+    """Why a save of ADR通報.xlsx should be refused, or ''."""
+    if os.path.basename(path) != WORKBOOK:
+        return ''
+    if new_size > WORKBOOK_CAP:
+        return f'{WORKBOOK} 會變成 {new_size // 1048576} MB，超過上限'
+    if os.path.isfile(path):
+        old = os.path.getsize(path)
+        if new_size > old * 1.5 + 200_000:
+            return f'{WORKBOOK} 會由 {old // 1024} KB 突然變成 {new_size // 1024} KB'
+    return ''
+
+
+def unmangle(xml):
+    """Undoes the theme garbling (UTF-8 bytes read as latin-1 and encoded
+    again, once per save), one run of non-ASCII text at a time."""
+    try:
+        text = xml.decode('utf-8')
+    except UnicodeDecodeError:
+        return xml
+
+    def fix(m):
+        run = m.group(0)
+        for _ in range(64):
+            try:
+                run = run.encode('latin-1').decode('utf-8')
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                break
+        return run
+    return re.sub('[\u0080-\uffff]+', fix, text).encode('utf-8')
+
+
 def repair_workbook():
     """Cuts the bloat out of ADR通報.xlsx (see COLS), after a backup, and
     stores it compressed. Only column widths change; every cell stays."""
     try:
         path = os.path.join(read_adr_dir(), WORKBOOK)
-        if not os.path.isfile(path) or os.path.getsize(path) < 2_000_000:
+        if not os.path.isfile(path):
             return
         before = os.path.getsize(path)
         changed = False
@@ -94,8 +139,12 @@ def repair_workbook():
                 slim = slim_cols(data)
                 if slim is not None:
                     data, changed = slim, True
+            elif re.match(r'xl/theme/theme\d+\.xml$', info.filename):
+                fixed = unmangle(data)
+                if fixed != data:
+                    data, changed = fixed, True
             out.append((info.filename, data))
-        stored = any(info.compress_type == zipfile.ZIP_STORED for info, _ in parts)
+        stored = before > 2_000_000 and any(info.compress_type == zipfile.ZIP_STORED for info, _ in parts)
         if not changed and not stored:
             return
         tmp = path + '.adrtmp'
@@ -259,6 +308,11 @@ class Handler(SimpleHTTPRequestHandler):
             tmp = path + '.adrtmp'
             with open(tmp, 'wb') as f:
                 f.write(data)
+            refused = too_big(path, len(data))
+            if refused:
+                os.remove(tmp)
+                log_repair(refused)
+                return self.reply(409, '存檔異常：' + refused + '。已取消存檔並保留原檔，請聯絡管理者。')
             try:
                 if path.lower().endswith('.xlsx') and os.path.isfile(path):
                     backup(path)

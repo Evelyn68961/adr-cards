@@ -35,7 +35,29 @@
   // K:XFD) is read back as 16,384 separate columns; written out as such it
   // bloats the file ~80x and can make the page run out of memory and crash
   // (STATUS_BREAKPOINT). Only the columns in use are kept.
+  // SheetJS keeps the theme (xl/theme/theme1.xml) as the file's raw bytes
+  // in a string, one character per byte, and writes it back UTF-8 encoded:
+  // every non-ASCII byte (Excel's East Asian font names, e.g. 新細明體)
+  // became two on each save. The theme doubled save after save until the
+  // workbook passed 100 MB and the page crashed (STATUS_BREAKPOINT). Read it
+  // as UTF-8 before writing; a theme garbled by earlier saves is undone the
+  // same way, one layer at a time, until real text comes back.
+  function fixTheme(wb) {
+    if (!wb.Themes || typeof wb.Themes.raw !== 'string') return;
+    const utf8 = new TextDecoder('utf-8', { fatal: true });
+    // Each run of non-ASCII characters (one font name) on its own, so one
+    // that is already right never stops another from being repaired.
+    wb.Themes.raw = wb.Themes.raw.replace(/[\u0080-\uffff]+/g, run => {
+      for (let i = 0; i < 64 && !/[^\x00-\xff]/.test(run); i++) {
+        try { run = utf8.decode(Uint8Array.from(run, ch => ch.charCodeAt(0))); }
+        catch (e) { break; }   // not UTF-8 bytes: leave as it is
+      }
+      return run;
+    });
+  }
+
   function save(XLSX, wb) {
+    fixTheme(wb);
     wb.SheetNames.forEach(name => {
       const ws = wb.Sheets[name];
       if (ws['!cols'] && ws['!ref']) {

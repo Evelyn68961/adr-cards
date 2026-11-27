@@ -276,3 +276,58 @@ test('a sheet whose used area Excel stretched to row 1,048,576 saves quickly', (
   assert.equal(XLSX.read(out.bytes, { type: 'array' }).Sheets['202601']['!ref'], 'A1:N2');
   assert.ok(W.readLedger(XLSX, P, bytes).months['202601']);
 });
+
+// A workbook whose theme names East Asian fonts, as Excel writes it.
+function withTheme(bytes, fonts) {
+  const cfb = XLSX.CFB.read(bytes, { type: 'array' });
+  const entry = XLSX.CFB.find(cfb, '/xl/theme/theme1.xml');
+  entry.content = Buffer.from(Buffer.from(entry.content).toString('utf8')
+    .replace(/<a:latin typeface="[^"]*"\/>/, m => m + fonts), 'utf8');
+  return new Uint8Array(XLSX.CFB.write(cfb, { type: 'array', fileType: 'zip' }));
+}
+const themeOf = bytes => Buffer.from(XLSX.CFB.find(XLSX.CFB.read(bytes, { type: 'array' }), '/xl/theme/theme1.xml').content);
+
+test('saving keeps a theme with East Asian font names the same size, and undoes earlier garbling', () => {
+  const cards = P.assignIds(P.parseText(row(1, '2026/10/17 10:52:08')).rows, 1);
+  const fonts = '<a:font script="Jpan" typeface="ＭＳ Ｐゴシック"/><a:font script="Hant" typeface="新細明體"/>';
+  let bytes = withTheme(W.appendRows(XLSX, P, null, cards).bytes, fonts);
+  const size = themeOf(bytes).length;
+  // SheetJS used to UTF-8-encode the theme's raw bytes again on every save,
+  // doubling each non-ASCII byte: 100+ MB after ~20 saves.
+  for (let i = 0; i < 6; i++) bytes = W.setTfdaDates(XLSX, bytes, new Map([['1151001', `2026/11/1${i}`]])).bytes;
+  assert.equal(themeOf(bytes).length, size);
+  assert.ok(themeOf(bytes).toString('utf8').includes('typeface="新細明體"'));
+  // A theme already garbled three times by the old saves comes back whole.
+  let garbled = fonts;
+  for (let i = 0; i < 3; i++) garbled = Buffer.from(garbled, 'utf8').toString('latin1');
+  const fixed = W.setWriters(XLSX, withTheme(W.appendRows(XLSX, P, null, cards).bytes, garbled), new Map([['1151001', '王']])).bytes;
+  assert.ok(themeOf(fixed).toString('utf8').includes('typeface="新細明體"'));
+  assert.equal(themeOf(fixed).length, size);
+});
+
+test('a workbook with every known trap saved 10 times keeps every part the same size', () => {
+  // East Asian theme fonts (theme garbling), widths for all 16,384 columns
+  // (cols bloat) and an area stretched to row 1,048,576 (slow range walks).
+  const cards = P.assignIds(P.parseText([row(1, '2026/10/17 10:52:08'), row(2, '2026/11/02 09:00:00')].join('\n')).rows, 1);
+  const wb = XLSX.read(W.appendRows(XLSX, P, null, cards).bytes, { type: 'array', cellStyles: true });
+  wb.Sheets['202610']['!cols'] = Array.from({ length: 16384 }, () => ({ wch: 9 }));
+  wb.Sheets['202611']['!ref'] = 'A1:N200000';
+  let bytes = withTheme(new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true })),
+    '<a:font script="Jpan" typeface="ＭＳ Ｐゴシック"/><a:font script="Hant" typeface="新細明體"/>');
+  const parts = b => Object.fromEntries(XLSX.CFB.read(b, { type: 'array' }).FullPaths
+    .map((p, i, all) => [p.replace(/^Root Entry/, ''), XLSX.CFB.read(b, { type: 'array' }).FileIndex[i].size]));
+  // The first saves clean up and add the cells the later saves only change.
+  bytes = W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師0']])).bytes;
+  bytes = W.setTfdaDates(XLSX, bytes, new Map([['1151101', '2026/11/10']])).bytes;
+  const first = parts(bytes);
+  for (let i = 0; i < 10; i++) {
+    bytes = (i % 2 ? W.setWriters(XLSX, bytes, new Map([['1151001', '王藥師' + i]]))
+      : W.setTfdaDates(XLSX, bytes, new Map([['1151101', `2026/11/1${i}`]]))).bytes;
+  }
+  const last = parts(bytes);
+  for (const [name, size] of Object.entries(first)) {
+    if (/theme|styles|worksheets/.test(name)) assert.ok(Math.abs(last[name] - size) <= 4, `${name}: ${size} → ${last[name]}`);
+  }
+  assert.ok(bytes.length < 40000, `file is ${bytes.length} bytes`);
+  assert.ok(themeOf(bytes).toString('utf8').includes('typeface="ＭＳ Ｐゴシック"'));
+});
