@@ -80,6 +80,9 @@
   const HIS_USER_COL = 11;
   const HIS_USER_ID_COL = 12;
   const HIS_HEADER = ['通報者', '通報者員編'];
+  // The day the case was reported to TFDA (TFDA helper), column N.
+  const TFDA_COL = 13;
+  const TFDA = 'TFDA通報日期';
   const MARKED = 'V';
 
   // What the workbook holds: { months: { '202610': { key: '11510', rows, maxSeq } },
@@ -194,7 +197,7 @@
         holders.forEach(i => { if (i !== at) drop.add(i); });
         // A row taken over from another case does not keep that case's 撰寫人, mark or 通報者.
         if (!byKey.has(key) && at !== undefined) {
-          [WRITER_COL, NOTE_COL, HIS_USER_COL, HIS_USER_ID_COL].forEach(c => delete ws[XLSX.utils.encode_cell({ r: at + base, c })]);
+          [WRITER_COL, NOTE_COL, HIS_USER_COL, HIS_USER_ID_COL, TFDA_COL].forEach(c => delete ws[XLSX.utils.encode_cell({ r: at + base, c })]);
         }
         const values = P.sheetRow(r);
         if (at === undefined) {
@@ -316,7 +319,10 @@
   // 值得注意 (column K): Map(識別碼 -> MARKED, or '' to unmark).
   const setNotes = (XLSX, bytes, notes) => setColumn(XLSX, bytes, NOTE_COL, NOTE, notes);
 
-  const api = { appendRows, readLedger, setWriters, setNotes, NOTE_COL, MARKED };
+  // TFDA通報日期 (column N): Map(識別碼 -> "2026/11/27", '' clears).
+  const setTfdaDates = (XLSX, bytes, dates) => setColumn(XLSX, bytes, TFDA_COL, TFDA, dates);
+
+  const api = { appendRows, readLedger, setWriters, setNotes, setTfdaDates, NOTE_COL, TFDA_COL, MARKED };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADRWorkbook = api;
 })(typeof window !== 'undefined' ? window : globalThis);

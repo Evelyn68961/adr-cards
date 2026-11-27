@@ -380,3 +380,5 @@ button:disabled { opacity: .4; cursor: default; }
 .ov-input { width: 7em; font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); }
 .ov-input.short { width: 6em; }
 .ov-meeting .hint a { color: var(--accent); font-weight: 600; }
+
+.tfda-day { width: 8em; font: inherit; padding: 3px 6px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--text); }

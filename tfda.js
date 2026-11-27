@@ -5,9 +5,11 @@
   'use strict';
 
   const F = window.ADRForms;
+  const W = window.ADRWorkbook;
   const $ = id => document.getElementById(id);
   // Not Excel's ~$ lock files, which exist while a form is open.
   const FORM_FILE = /^(?!~\$).*通報表.*\.xlsx?$/i;
+  const WORKBOOK_NAME = 'ADR通報.xlsx';
   const EXCEL = /\.xlsx?$/i;
   // The report form printed to PDF; not the PDFs this app makes (ADR_<識別碼>…).
   const PDF = /\.pdf$/i;
@@ -20,6 +22,7 @@
   let lookup = null;      // licence finder, once data/tfda-licenses.json is loaded
   let licenseIndex = null;
   let reported = new Map();  // 識別碼 -> 藥碼 recorded in ADR通報.xlsx (HIS)
+  let tfdaDates = new Map(); // 識別碼 -> day reported to TFDA (ADR通報.xlsx column N)
   const hospitalCache = new Map();
 
   async function loadLicenses() {
@@ -137,6 +140,7 @@
   // 藥碼 per 識別碼 from the monthly sheets of ADR通報.xlsx (識別碼 | 病歷號 | 姓名 | 藥碼 | …).
   async function readReported() {
     const map = new Map();
+    tfdaDates = new Map();
     try {
       const file = await (await folder.getFileHandle('ADR通報.xlsx')).getFile();
       const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
@@ -144,6 +148,8 @@
         for (const r of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })) {
           const id = String(r[0]).trim();
           if (/^\d{7}$/.test(id) && r[3]) map.set(id, String(r[3]).trim().toUpperCase());
+          const day = /^\d{7}$/.test(id) && window.ADRParse.parseDate(String(r[W.TFDA_COL] || '').trim());
+          if (day) tfdaDates.set(id, slashDay(day));
         }
       }
     } catch (e) { /* no workbook: the hospital list is still searched by name */ }
@@ -333,11 +339,11 @@
       const drug = (F.parseDrugs(c.suspect)[0] || { items: [] }).items.find(i => /英文商品名/.test(i.label));
       return el('button', {
         type: 'button',
-        class: 'case-btn' + (current && caseKey(current) === caseKey(c) ? ' active' : '') + (done.has(caseKey(c)) ? ' done' : ''),
+        class: 'case-btn' + (current && caseKey(current) === caseKey(c) ? ' active' : '') + (isDone(c) ? ' done' : ''),
         onclick: () => select(c),
       }, el('strong', {}, c.id), el('span', {}, drug ? drug.value : c.symptoms),
       dupIds.has(c.id) ? el('span', { class: 'case-flag' }, '識別碼重複') : null,
-      done.has(caseKey(c)) ? el('span', { class: 'case-flag ok' }, '已通報') : null);
+      isDone(c) ? el('span', { class: 'case-flag ok' }, tfdaDates.has(c.id) ? `已通報 ${tfdaDates.get(c.id).replace(/^\d{4}\//, '')}` : '已通報') : null);
     }));
     // One click: a 檢驗資料 PDF for every case of the month.
     const empty = list.filter(c => !F.hasLabs(c));
@@ -431,16 +437,53 @@
     }));
   }
 
+  const slashDay = d => `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  const isDone = c => tfdaDates.has(c.id) || done.has(caseKey(c));
+
+  // Saves the TFDA 通報 day ('' clears it) into ADR通報.xlsx column N.
+  async function recordTfda(c, day) {
+    if (day) tfdaDates.set(c.id, day); else tfdaDates.delete(c.id);
+    renderList();
+    if (!folder) { toast('沒有連到 ADR 資料夾：只記在這個瀏覽器'); if (day) done.add(caseKey(c)); saveDone(); return; }
+    try {
+      const handle = await folder.getFileHandle(WORKBOOK_NAME);
+      const result = W.setTfdaDates(XLSX, new Uint8Array(await (await handle.getFile()).arrayBuffer()), new Map([[c.id, day]]));
+      if (result.missing.length) { toast(`${WORKBOOK_NAME} 中沒有 ${c.id}，日期沒有存入`); return; }
+      if (result.changed.length) {
+        const w = await handle.createWritable();
+        await w.write(result.bytes);
+        await w.close();
+      }
+      toast(day ? `已記錄 TFDA 通報日期 ${day}` : '已取消 TFDA 通報紀錄');
+    } catch (e) {
+      toast(`沒有存入 ${WORKBOOK_NAME}（若在 Excel 中開著請先關閉）：${e.message}`);
+    }
+  }
+
   function select(c) {
     current = c;
     const { sections, warnings } = F.tfdaSections(c, lookup);
     const key = caseKey(c);
+    // 已完成 TFDA 通報 records the day (today unless changed) in ADR通報.xlsx,
+    // for 通報日期 on the meeting list.
     const doneBox = el('input', { type: 'checkbox' });
-    doneBox.checked = done.has(key);
+    doneBox.checked = isDone(c);
+    const dayBox = el('input', { class: 'tfda-day', placeholder: 'YYYY/MM/DD', autocomplete: 'off', 'aria-label': 'TFDA 通報日期' });
+    dayBox.value = tfdaDates.get(c.id) || '';
+    dayBox.hidden = !doneBox.checked;
     doneBox.addEventListener('change', () => {
-      if (doneBox.checked) done.add(key); else done.delete(key);
+      if (doneBox.checked && !dayBox.value) dayBox.value = slashDay(new Date());
+      dayBox.hidden = !doneBox.checked;
+      if (!doneBox.checked) done.delete(key);
       saveDone();
-      renderList();
+      recordTfda(c, doneBox.checked ? dayBox.value : '');
+    });
+    dayBox.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) dayBox.blur(); });
+    dayBox.addEventListener('change', () => {
+      const day = window.ADRParse.parseDate(dayBox.value.trim());
+      if (!day) { toast('日期格式：2026/11/27'); dayBox.value = tfdaDates.get(c.id) || ''; return; }
+      dayBox.value = slashDay(day);
+      recordTfda(c, dayBox.value);
     });
     const view = $('caseView');
     view.replaceChildren(
@@ -449,7 +492,7 @@
         el('span', { class: 'hint' }, `撰寫：${c.trainee || c.reporter || '—'}`),
         el('span', { class: 'actions' },
           el('button', { type: 'button', onclick: async () => { await makeAttachments([c]); select(c); } }, '檢驗資料 PDF'),
-          el('label', { class: 'done-toggle' }, doneBox, '已完成 TFDA 通報')),
+          el('label', { class: 'done-toggle' }, doneBox, '已完成 TFDA 通報'), dayBox),
         warnings.length ? el('ul', { class: 'messages' }, ...warnings.map(w => el('li', { class: 'warn' }, w))) : null),
       ...sections.map(s => el('section', { class: 'panel tf-section' },
         el('h3', { class: 'tf-tab' }, s.tab),

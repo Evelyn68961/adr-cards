@@ -29,6 +29,8 @@
           id: str(r[0]), chartNo, drugCode: str(r[3]), drug: P.cleanDrug(r[4]), severity: str(r[5]),
           source: str(r[6]), symptom: P.cleanSymptom(r[7]), date, writer: str(r[9]), ...markOf(r[10]),
           hisUser: str(r[11]), hisUserId: str(r[12]).toUpperCase(),
+          // Typed into Excel by hand it may be a real date.
+          tfdaDate: r[13] instanceof Date ? P.formatDate(r[13]) : str(r[13]),
         });
       });
     });
@@ -245,8 +247,9 @@
   }
 
   // Rows for the meeting list (array of arrays, header first, 單位主管 last).
-  // ICU is not recorded anywhere and is left blank; 通報日期 is the form's
-  // 表單提交日期. `allCases` (every workbook case) supplies the 員編 of names.
+  // ICU is not recorded anywhere and is left blank; 通報日期 is the day it was
+  // reported to TFDA (TFDA helper), else the form's 表單提交日期. `allCases`
+  // (every workbook case) supplies the 員編 of names.
   function meetingSheet(cases, { allCases = cases, reviewer = '', reviewerId = '' } = {}) {
     const ids = staffIds(allCases);
     const rows = cases.slice().sort((a, b) => a.id.localeCompare(b.id)).map(c => {
@@ -255,7 +258,7 @@
       const reporter = c.hisUser ? `${c.hisUser}${roleOf(c.hisUserId) ? `(${roleOf(c.hisUserId)})` : ''}` : '';
       return [
         c.id, '', c.chartNo, reporter, c.hisUserId || '',
-        slashDate(f.onset, false), slashDate(f.submitted, true),
+        slashDate(f.onset, false), slashDate(c.tfdaDate || f.submitted, true),
         P.splitCodes(c.drugCode).join('、'), f.symptoms || c.symptom || '',
         writer, ids.get(writer) || '', reviewer, reviewerId,
       ];

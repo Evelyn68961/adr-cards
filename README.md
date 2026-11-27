@@ -57,7 +57,8 @@ Without a linked folder (or in Firefox), **下載 PNG** and **產生 PDF** still
   藥品 / 症狀 / 通報人員 / 病歷號 included) and leaves identical rows untouched.
 - Columns: **識別碼** | 病歷號 | 姓名 | 藥碼 | 藥名 | 嚴重度 | 通報來源 | 症狀 | 得知日期 | **撰寫人** |
   **值得注意** (ticked on the 案例總覽 page) | **通報者** | **通報者員編** (HIS 最後異動者 and 員編, from
-  the HIS paste; kept when a case is saved again from rows without them).
+  the HIS paste; kept when a case is saved again from rows without them) | **TFDA通報日期** (TFDA
+  helper).
 - **撰寫人** (who writes up the case) is typed or pasted into the boxes in the 本月案例清單 table
   (unsaved ones turn yellow), then saved to column J with **儲存撰寫人** (or Enter); an empty box
   clears it. The page says whether it worked; if not, the names stay in the boxes to try again. Saves only rewrite
@@ -159,7 +160,9 @@ For entering finished report forms into the TFDA online ADR form.
   plus up to two alternatives), found by product name in `data/tfda-licenses.json`, a trimmed
   copy of TFDA's public licence open data (valid finished-product licences). Refresh it with
   `node tools/build-licenses.js 36_3.json` (instructions in the script).
-- **已完成 TFDA 通報** marks a case as done in this browser only.
+- **已完成 TFDA 通報** records the day the case was reported to TFDA (today; the date box next to
+  it can change it) in column N (TFDA通報日期) of `ADR通報.xlsx`; the case list shows 已通報 11/27,
+  and the meeting list uses it as 通報日期. Unticking clears it.
 
 ## Case overview (`overview.html`)
 
@@ -204,7 +207,8 @@ On 案例總覽, for the meeting every 4 months (e.g. 08–11):
    審核者 | 員編, then 單位主管：.
    - 通報者 / 員編: from the HIS paste (role from the 員編's letter: A 醫, B 護, C 藥); cases saved
      before this was recorded have them blank.
-   - 發生日期, 通報症狀: report form; 通報日期: the form's 表單提交日期; 通報藥品: 藥碼.
+   - 發生日期, 通報症狀: report form; 通報日期: the day recorded with 已完成 TFDA 通報 (TFDA
+     helper), else the form's 表單提交日期; 通報藥品: 藥碼.
    - 撰寫人 員編: looked up from the 通報者 names HIS recorded; blank if that person never keyed a case.
    - ICU is not recorded anywhere: blank, fill it in Excel.
 

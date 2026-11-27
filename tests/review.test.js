@@ -153,3 +153,18 @@ test('meeting list: 通報者 from HIS, Hartwig hint, one row per ticked case', 
   assert.deepEqual(rows[2].slice(3, 5), ['李護理師(護)', 'B00002']);
   assert.deepEqual(rows.slice(-2), [[], ['單位主管：']]);
 });
+
+test('the TFDA 通報 day goes to column N and becomes 通報日期 on the meeting list', () => {
+  const [r] = P.parseText(his(9, 'NEW01', 'Drug', '1_輕微', 'Rash', '2026/08/16 10:00:00')).rows;
+  let book = W.appendRows(XLSX, P, null, P.assignIds([r], 1)).bytes;
+  book = W.setTfdaDates(XLSX, book, new Map([['1150801', '2026/08/30']])).bytes;
+  const sheet = XLSX.utils.sheet_to_json(XLSX.read(book, { type: 'array' }).Sheets['202608'], { header: 1 });
+  assert.deepEqual([sheet[0][W.TFDA_COL], sheet[1][W.TFDA_COL]], ['TFDA通報日期', '2026/08/30']);
+  const [c] = R.flagCases(R.joinForms(R.workbookCases(XLSX, book), []));
+  assert.equal(c.tfdaDate, '2026/08/30');
+  assert.equal(R.meetingSheet([c])[1][6], '2026/08/30');
+  // A later save of the same case keeps it; clearing removes it.
+  const again = W.appendRows(XLSX, P, book, P.assignIds([Object.assign({}, r, { symptomRaw: 'Rash、Itch' })], null, { idFor: () => '1150801', nextSeq: () => 2 })).bytes;
+  assert.equal(R.workbookCases(XLSX, again)[0].tfdaDate, '2026/08/30');
+  assert.equal(R.workbookCases(XLSX, W.setTfdaDates(XLSX, again, new Map([['1150801', '']])).bytes)[0].tfdaDate, '');
+});
