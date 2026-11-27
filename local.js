@@ -145,10 +145,11 @@
     const nav = document.querySelector('.nav');
     if (!nav || !info.commit) return;
     const span = document.createElement('span');
-    const failed = /略過|失敗/.test(info.update);
+    const failed = /略過|失敗/.test(info.update) || !!info.warning;
     span.className = 'version' + (failed ? ' warn' : '');
-    span.textContent = `版本 ${info.commit}` + (failed ? `　${info.update.replace(/^\S+ \S+ /, '')}` : '');
-    span.title = info.update || '';
+    const note = info.warning || (/略過|失敗/.test(info.update) ? info.update : '');
+    span.textContent = `版本 ${info.commit}` + (note ? `　${note.replace(/^\S+ \S+ /, '')}` : '');
+    span.title = [info.update, info.warning && '詳見 D:\\Git\\adr-cards\\notes.log'].filter(Boolean).join('\n');
     nav.appendChild(span);
   }
   if (location.protocol.startsWith('http')) {

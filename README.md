@@ -31,15 +31,16 @@ folder built in, so nothing ever has to be linked or allowed.
   reason in red when the last update was skipped or failed (also in `update.log`).
 - **Guards ADR通報.xlsx against growing by itself:** a save that would make it more than 1.5×
   its size plus 200 KB, or over 5 MB, is refused (the old file is kept, the page says
-  「存檔異常…」, `update.log` notes it), and a backup that more than doubles is noted in
-  `update.log`. Two bugs grew the file save after save until the page crashed: width entries
+  「存檔異常…」, `notes.log` notes it), and a backup that more than doubles is noted in `notes.log`
+  too (kept across starts, last 200 lines; a warning from the last 7 days shows in red at the top of
+  every page). Two bugs grew the file save after save until the page crashed: width entries
   for all 16,384 columns, and the theme's East Asian font names being re-encoded on every save
   (each non-ASCII byte doubled; fixed in `workbook.js`, and undone in old files).
 - **Repairs an oversized workbook:** an older version saved every month sheet with width entries
   for all 16,384 columns, uncompressed (~1 MB per sheet; a 30 MB `ADR通報.xlsx` crashed every save
   in the browser). On start (and when a page finds the file over 4 MB) the helper cuts those
   entries back to columns A–Z, repairs a garbled theme, and stores the file compressed, after
-  copying it to `backups\`; cells are untouched. `update.log` says what it did.
+  copying it to `backups\`; cells are untouched. `notes.log` says what it did.
   Saves from the page are compressed too.
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
@@ -162,7 +163,7 @@ For entering finished report forms into the TFDA online ADR form.
   (`ADR_<識別碼>…`) are skipped. If a case is in both an Excel export and a PDF, the more complete
   copy is used.
 - **一次產生本月全部檢驗資料 PDF（N 件）** makes the lab-results PDF of every case of the month,
-  saved into the month folder; a case with no lab data gets one that says 「無」. A 檢查描述 too
+  saved into the month folder (it asks first if some already exist, as they may have been edited); a case with no lab data gets one that says 「無」. A 檢查描述 too
   long for TFDA's 檢驗說明 (250) goes into the attachment, and 檢驗說明 points to it.
 - The page shows one summary line for the files read (檔案明細 folds out); files that gave no
   cases are listed. Example and blank forms (範例, 空白) are skipped.

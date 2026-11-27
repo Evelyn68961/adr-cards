@@ -37,6 +37,10 @@ HOSPITAL_DRUG_DB = 'http://10.10.4.25:8080/Key_Search/'
 HOSPITAL_PAGES = {'P3', 'P4'}
 # Result of the last self-update, for when an update does not show up.
 UPDATE_LOG = os.path.join(APP_DIR, 'update.log')
+# Repairs, refused saves and backups that doubled: kept (last 200 lines),
+# not overwritten at each start like update.log, so they can be noticed.
+NOTES_LOG = os.path.join(APP_DIR, 'notes.log')
+NOTES_KEPT = 200
 # No console window flashing up for git under pythonw.
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
@@ -173,11 +177,34 @@ def mtime_ms(path):
 
 def log_repair(message):
     try:
-        with open(UPDATE_LOG, 'a', encoding='utf-8') as f:
-            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} {message}\n')
+        try:
+            with open(NOTES_LOG, encoding='utf-8') as f:
+                lines = f.read().splitlines()
+        except OSError:
+            lines = []
+        lines.append(f'{time.strftime("%Y-%m-%d %H:%M:%S")} {message}')
+        with open(NOTES_LOG, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines[-NOTES_KEPT:]) + '\n')
     except OSError:
         pass
     return message
+
+
+def recent_warning(days=7):
+    """The latest warning (refused save, doubled backup, failed repair) of
+    the last few days, for the page header; '' if none."""
+    try:
+        with open(NOTES_LOG, encoding='utf-8') as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return ''
+    since = time.strftime('%Y-%m-%d', time.localtime(time.time() - days * 86400))
+    for line in reversed(lines):
+        if line[:10] < since:
+            break
+        if re.search(r'注意|存檔異常|突然變成|超過上限|失敗|沒辦法|正被其他程式使用', line):
+            return line
+    return ''
 
 
 def read_adr_dir():
@@ -487,7 +514,7 @@ def version():
             last = f.read().strip()
     except OSError:
         last = ''
-    return {'commit': head[:7], 'update': last}
+    return {'commit': head[:7], 'update': last, 'warning': recent_warning()}
 
 
 def replace_running():

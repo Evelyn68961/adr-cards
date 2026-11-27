@@ -689,7 +689,19 @@
     if (files.length) loadPicked(files).catch(err => showSource(['讀取失敗：' + err.message]));
   });
   $('allPdfBtn').addEventListener('click', async () => {
-    await makeAttachments(monthCases());
+    const list = monthCases();
+    // Existing ones may have been edited by hand: ask before replacing them.
+    if (folder && list.length) {
+      const have = [];
+      try {
+        const dir = await folder.getDirectoryHandle('ADR_' + F.monthOf(list[0]));
+        for (const c of list) {
+          try { await dir.getFileHandle(F.attachmentName(c)); have.push(c.id); } catch (e) { /* not made yet */ }
+        }
+      } catch (e) { /* no month folder yet */ }
+      if (have.length && !confirm(`已有 ${have.length} 個檢驗資料 PDF（${have.join('、')}），要用目前的通報表內容重新產生並覆蓋嗎？`)) return;
+    }
+    await makeAttachments(list);
     if (current) select(current);
   });
   reload();
