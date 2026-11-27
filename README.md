@@ -135,6 +135,15 @@ For entering finished report forms into the TFDA online ADR form.
   different column orders are handled; a case exported twice keeps the most complete copy.
 - The page lists each file read with its number of cases, or why it gave none (not a report
   form, only a header, or no 7-digit 識別代碼; rows without one are counted).
+- When the system's Excel export does not work, the report form printed to PDF from the fill-in
+  page (ADR通報表_空白表單.html → 列印 → 另存為 PDF, one case per PDF) is read too, in the folders or
+  uploaded. Typed answers come from the PDF's text; ticked choices (性別, 來源, 結果, 嚴重性,
+  Naranjo …) are read by drawing each page and looking for the filled dot (pdfform.js, with
+  pdf.js from cdn.jsdelivr.net, loaded only when there is a PDF to read). PDFs this app makes
+  (`ADR_<識別碼>…`) are skipped. If a case is in both an Excel export and a PDF, the more complete
+  copy is used.
+- **一次產生本月全部檢驗資料 PDF（N 件）** makes the lab-results PDF of every case of the month that
+  has 相關檢查及檢驗數據 (cases where it is 「無」 need none), saved into the month folder.
 - **上傳通報表** picks exports from anywhere: they are read at once and, with the desktop helper,
   saved into the ADR folder (replacing a file of the same name) so the page keeps reading them.
 - Pick a month and a case. The case is laid out in the TFDA tabs (General, Patient, Reaction 1/2,

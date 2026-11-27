@@ -9,6 +9,10 @@
   // Not Excel's ~$ lock files, which exist while a form is open.
   const FORM_FILE = /^(?!~\$).*通報表.*\.xlsx?$/i;
   const EXCEL = /\.xlsx?$/i;
+  // The report form printed to PDF; not the PDFs this app makes (ADR_<識別碼>…).
+  const PDF = /\.pdf$/i;
+  const isFormFile = name => !name.startsWith('~$') && name !== WORKBOOK_NAME &&
+    (EXCEL.test(name) || (PDF.test(name) && !/^ADR_\d/i.test(name)));
   const WORKBOOK_NAME = 'ADR通報.xlsx';
   const DONE_KEY = 'adr-tfda-done';
 
@@ -59,6 +63,21 @@
   // ---- loading ----
 
   // Cases in one Excel file, and what was found, to explain an empty result.
+  // A printed form gives one case; reading draws every page, so each file is
+  // read once per visit.
+  const pdfCache = new Map();
+  async function readPdfFile(key, bytes) {
+    if (!pdfCache.has(key)) {
+      const c = await window.ADRPdfForm.readPdf(bytes);
+      pdfCache.set(key, { cases: c && /^\d{7}$/.test(c.id) ? [c] : [], stats: { headers: c ? 1 : 0, rows: c ? 1 : 0, noId: c && !/^\d{7}$/.test(c.id) ? 1 : 0 } });
+    }
+    return pdfCache.get(key);
+  }
+
+  async function readAny(name, bytes) {
+    return PDF.test(name) ? readPdfFile(name + '|' + bytes.length, bytes) : readFile(bytes);
+  }
+
   function readFile(bytes) {
     const wb = XLSX.read(bytes, { type: 'array' });
     const stats = {};
@@ -79,7 +98,7 @@
     const found = [];
     const scan = async (dir, prefix) => {
       for await (const name of dir.keys()) {
-        if (EXCEL.test(name) && !name.startsWith('~$') && name !== WORKBOOK_NAME) found.push({ dir, name, path: prefix + name });
+        if (isFormFile(name)) found.push({ dir, name, path: prefix + name });
       }
     };
     await scan(folder, '');
@@ -91,7 +110,7 @@
     for (const f of found) {
       try {
         const file = await (await f.dir.getFileHandle(f.name)).getFile();
-        const result = readFile(new Uint8Array(await file.arrayBuffer()));
+        const result = await readAny(f.name, new Uint8Array(await file.arrayBuffer()));
         if (result.cases.length) lists.push(result.cases);
         if (result.cases.length || FORM_FILE.test(f.name) || result.stats.headers) lines.push(describe(f.path, result));
       } catch (e) {
@@ -216,7 +235,7 @@
     const saved = [];
     for (const f of files) {
       const bytes = new Uint8Array(await f.arrayBuffer());
-      const result = readFile(bytes);
+      const result = await readAny(f.name, bytes);
       lines.push(describe(f.name, result));
       if (!result.cases.length) continue;
       lists.push(result.cases);
@@ -274,7 +293,15 @@
       dupIds.has(c.id) ? el('span', { class: 'case-flag' }, '識別碼重複') : null,
       done.has(caseKey(c)) ? el('span', { class: 'case-flag ok' }, '已通報') : null);
     }));
-    $('allPdfBtn').disabled = !list.some(F.hasLabs);
+    // One click for every case of the month that has lab data.
+    const withLabs = list.filter(F.hasLabs);
+    $('allPdfBtn').disabled = !withLabs.length;
+    $('allPdfBtn').textContent = withLabs.length
+      ? `一次產生本月全部檢驗資料 PDF（${withLabs.length} 件）`
+      : '本月沒有需要檢驗資料 PDF 的案例';
+    $('allPdfBtn').title = withLabs.length
+      ? `有檢驗數據的案例：${withLabs.map(c => c.id).join('、')}；其他案例的「相關檢查及檢驗數據」是「無」，不需要附件`
+      : '本月每個案例的「相關檢查及檢驗數據」都是「無」，不需要附件';
     if (current && !list.some(c => caseKey(c) === caseKey(current))) current = null;
     if (!current && list.length) select(list[0]);
     else if (!list.length) $('caseView').hidden = true;
