@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon-tfda.svg">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2f6f73">
-  <link rel="stylesheet" href="style.css?v=20261127">
+  <link rel="stylesheet" href="style.css?v=20261127c">
 </head>
 <body>
   <header>
@@ -23,10 +23,9 @@
         <span class="actions">
           <select id="month" aria-label="月份"></select>
           <button id="reloadBtn" type="button" class="secondary">重新讀取</button>
-          <label class="file-btn upload">上傳通報表<input id="fileInput" type="file" accept=".xls,.xlsx,.pdf" multiple hidden></label>
+          <label class="file-btn upload" title="選取系統匯出的通報表 Excel，或通報表列印成的 PDF（每案一個）；會存進 ADR 資料夾並立刻讀取">上傳通報表<input id="fileInput" type="file" accept=".xls,.xlsx,.pdf" multiple hidden></label>
         </span>
       </div>
-      <p class="hint">把系統匯出的「2.5.6－藥品不良反應 (ADR) 通報表」Excel 按「上傳通報表」選進來：會存進 ADR 資料夾並立刻讀取，之後打開本頁就會讀到它。系統匯不出 Excel 時，也可以上傳通報表列印成的 PDF（每案一個 PDF）。</p>
       <div id="sourceStatus" class="hint source-status">讀取中…</div>
       <div id="caseList" class="case-list"></div>
       <div class="controls">
@@ -47,8 +46,8 @@
   <script src="parse.js?v=20261123"></script>
   <script src="licenses.js?v=20261102"></script>
   <script src="hospital.js?v=20261102"></script>
-  <script src="forms.js?v=20261127"></script>
+  <script src="forms.js?v=20261127b"></script>
   <script src="pdfform.js?v=20261127"></script>
-  <script src="tfda.js?v=20261127b"></script>
+  <script src="tfda.js?v=20261127d"></script>
 </body>
 </html>

@@ -11,7 +11,8 @@
   const EXCEL = /\.xlsx?$/i;
   // The report form printed to PDF; not the PDFs this app makes (ADR_<識別碼>…).
   const PDF = /\.pdf$/i;
-  const isFormFile = name => !name.startsWith('~$') && name !== WORKBOOK_NAME &&
+  // Examples and blank forms (e.g. ADR通報表_填寫範例集.pdf) are not cases.
+  const isFormFile = name => !name.startsWith('~$') && name !== WORKBOOK_NAME && !/範例|空白|樣本|template/i.test(name) &&
     (EXCEL.test(name) || (PDF.test(name) && !/^ADR_\d/i.test(name)));
   const WORKBOOK_NAME = 'ADR通報.xlsx';
   const DONE_KEY = 'adr-tfda-done';
@@ -85,11 +86,13 @@
     return { cases, stats };
   }
 
+  // One line per file: { text, ok }. Files that gave nothing are shown
+  // up front; the rest only in the folded 檔案明細.
   function describe(path, { cases, stats }) {
-    if (cases.length) return `${path}：${cases.length} 案` + (stats.noId ? `（另有 ${stats.noId} 列沒有 7 碼識別代碼，略過）` : '');
-    if (!stats.headers) return `${path}：不是通報表（找不到「識別代碼」等欄位）`;
-    if (!stats.rows) return `${path}：只有標題列，沒有資料`;
-    return `${path}：${stats.rows} 列都沒有 7 碼識別代碼（例如 1151103），所以沒有讀入`;
+    if (cases.length) return { ok: true, text: `${path}：${cases.length} 案` + (stats.noId ? `（${stats.noId} 列沒有識別代碼）` : '') };
+    if (!stats.headers) return { ok: false, text: `${path}：不是通報表` };
+    if (!stats.rows) return { ok: false, text: `${path}：沒有資料` };
+    return { ok: false, text: `${path}：沒有 7 碼識別代碼（例如 1151103），未讀入` };
   }
 
   // Every Excel file in the ADR folder and its ADR_<yyyMM> folders except the
@@ -114,7 +117,7 @@
         if (result.cases.length) lists.push(result.cases);
         if (result.cases.length || FORM_FILE.test(f.name) || result.stats.headers) lines.push(describe(f.path, result));
       } catch (e) {
-        lines.push(`${f.path}：無法讀取（${e.message}）`);
+        lines.push({ ok: false, text: `${f.path}：無法讀取（${e.message}）` });
       }
     }
     reported = await readReported();
@@ -169,6 +172,13 @@
       licenseIndex ? { tfda: window.ADRLicenses.licenseFromNhiCode(licenseIndex, d.nhi, d.zh) } : {}));
   }
 
+  function drugNotice(text, warn) {
+    const n = $('drugNotice');
+    if (!n || (n.classList.contains('warn') && !warn)) return;
+    n.textContent = ' ' + text;
+    n.classList.toggle('warn', warn);
+  }
+
   function hospitalBlock(f, his) {
     const box = el('div', { class: 'tf-hospital' }, el('div', { class: 'tf-hint' }, '查詢院內藥品資料庫…'));
     const formZh = window.ADRLicenses.normZh(f.hospital.zh);
@@ -192,10 +202,11 @@
             el('a', { href: H().PAGE_URL + encodeURIComponent(p.code), target: '_blank', rel: 'noopener' }, p.code),
             `｜${p.en}｜${p.zh}`, lic && lic.company ? `｜${lic.company}` : '', lic && lic.guessed ? '｜（由健保碼推算）' : '',
             ...tags.map(t => el('span', { class: 'tf-tag' }, t))));
-      }), el('div', { class: 'tf-hint' }, '請以病人實際使用的院內品項為準（點藥碼可開啟院內藥品資料）。'));
+      }));
+      drugNotice('快速搜尋以病人實際使用的院內品項為準（點藥碼可開啟院內藥品資料）。', false);
     }).catch(e => {
-      box.replaceChildren(el('div', { class: 'tf-hint warn' }, `${e.message}；以下是依品名比對 TFDA 許可證的結果。`),
-        ...nameCandidates(f));
+      box.replaceChildren(...nameCandidates(f));
+      drugNotice(`${e.message}：快速搜尋改用品名比對 TFDA 許可證的結果，請核對品名與廠牌。`, true);
     });
     return box;
   }
@@ -246,14 +257,14 @@
           await w.close();
           saved.push(f.name);
         } catch (e) {
-          lines.push(`${f.name} 沒有存進 ADR 資料夾：${e.message}`);
+          lines.push({ ok: false, text: `${f.name} 沒有存進 ADR 資料夾：${e.message}` });
         }
       }
     }
     if (saved.length) {
       // Read the whole folder again, so older exports there are merged too.
       const { lists: all, lines: folderLines } = await loadFromFolder();
-      setCases(F.mergeCases(all), [`已存進 ADR 資料夾：${saved.join('、')}`, ...folderLines]);
+      setCases(F.mergeCases(all), folderLines, `已存進 ADR 資料夾：${saved.join('、')}`);
     } else {
       setCases(F.mergeCases(lists), lines);
     }
@@ -263,9 +274,15 @@
     $('sourceStatus').replaceChildren(...lines.map(t => el('div', {}, t)));
   }
 
-  function setCases(list, lines) {
+  // One summary line; files that gave nothing are listed, the rest folded.
+  function setCases(list, lines, note = '') {
     cases = list;
-    showSource([`共 ${list.length} 案`, ...lines]);
+    const bad = lines.filter(l => !l.ok);
+    const good = lines.filter(l => l.ok);
+    $('sourceStatus').replaceChildren(
+      el('div', {}, `共 ${list.length} 案，讀自 ${good.length} 個檔案` + (note ? `　${note}` : '')),
+      ...bad.map(l => el('div', { class: 'source-warn' }, l.text)),
+      good.length ? el('details', { class: 'source-files' }, el('summary', {}, '檔案明細'), ...good.map(l => el('div', {}, l.text))) : null);
     const months = [...new Set(list.map(F.monthOf))].sort().reverse();
     const sel = $('month');
     const keep = sel.value;
@@ -293,15 +310,11 @@
       dupIds.has(c.id) ? el('span', { class: 'case-flag' }, '識別碼重複') : null,
       done.has(caseKey(c)) ? el('span', { class: 'case-flag ok' }, '已通報') : null);
     }));
-    // One click for every case of the month that has lab data.
-    const withLabs = list.filter(F.hasLabs);
-    $('allPdfBtn').disabled = !withLabs.length;
-    $('allPdfBtn').textContent = withLabs.length
-      ? `一次產生本月全部檢驗資料 PDF（${withLabs.length} 件）`
-      : '本月沒有需要檢驗資料 PDF 的案例';
-    $('allPdfBtn').title = withLabs.length
-      ? `有檢驗數據的案例：${withLabs.map(c => c.id).join('、')}；其他案例的「相關檢查及檢驗數據」是「無」，不需要附件`
-      : '本月每個案例的「相關檢查及檢驗數據」都是「無」，不需要附件';
+    // One click: a 檢驗資料 PDF for every case of the month.
+    const empty = list.filter(c => !F.hasLabs(c));
+    $('allPdfBtn').disabled = !list.length;
+    $('allPdfBtn').textContent = `一次產生本月全部檢驗資料 PDF（${list.length} 件）`;
+    $('allPdfBtn').title = empty.length ? `沒有檢驗資料的案例（PDF 內容為「無」）：${empty.map(c => c.id).join('、')}` : '';
     if (current && !list.some(c => caseKey(c) === caseKey(current))) current = null;
     if (!current && list.length) select(list[0]);
     else if (!list.length) $('caseView').hidden = true;
@@ -316,7 +329,7 @@
       class: 'copy' + (opts.long ? ' long' : '') + (value ? '' : ' empty'),
       title: value ? '點一下複製' : '',
       onclick: () => value && copy(value, box),
-    }, value || '（空白）');
+    }, value || '空白');
     return box;
   }
 
@@ -358,14 +371,15 @@
     if (f.options) {
       row.append(el('div', { class: 'tf-options' }, ...f.options.map(o =>
         el('span', { class: 'tf-option' + (o === f.pick ? ' picked' : '') }, o))));
-      if (!f.pick && !f.hint) row.append(el('div', { class: 'tf-hint warn' }, `無法判斷，原始內容：${f.raw || '（空白）'}`));
+      if (!f.pick && !f.hint && f.raw) row.append(el('div', { class: 'tf-hint warn' }, `無法判斷，原始內容：${f.raw}`));
     } else if (f.list) {
       row.append(f.list.length ? el('div', { class: 'tf-chips' }, ...f.list.map(s => copyable(s))) : el('div', { class: 'tf-hint' }, '（無）'));
     } else if (f.candidates) {
       row.append(...nameCandidates(f));
     } else if (f.text !== '' || !f.hint) {
       row.append(copyable(f.text, f));
-      if (f.max) row.append(el('div', { class: 'tf-hint' + (f.text.length > f.max ? ' warn' : '') }, `${f.text.length}/${f.max}`));
+      // The length only matters near TFDA's limit.
+      if (f.max && f.text.length > f.max * 0.8) row.append(el('div', { class: 'tf-hint' + (f.text.length > f.max ? ' warn' : '') }, `${f.text.length}/${f.max}`));
     }
     if (f.hint) row.append(el('div', { class: 'tf-hint' }, f.hint));
     return row;
@@ -382,7 +396,7 @@
       // Forms sometimes list the suspect drugs again as interacting drugs.
       const same = suspects.find(s => norm(s.name) === norm(d.name));
       return el('div', { class: 'tf-drug' },
-        el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`, el('span', { class: 'hint' }, `　按「新增${group.kind}」後依序填入`)),
+        el('div', { class: 'tf-drug-title' }, `${group.kind}・${d.title}　${d.name}`),
         same ? el('div', { class: 'tf-hint warn' }, `與可疑藥品・${same.title}相同：表單把同一個藥品重複列為${group.kind}，請確認是否真的要在 TFDA 重複新增。`) : null,
         ...d.fields.map(f => field(f, his)));
     }));
@@ -405,11 +419,14 @@
         el('h2', {}, `${c.id}　${c.chartNo}`),
         el('span', { class: 'hint' }, `撰寫：${c.trainee || c.reporter || '—'}`),
         el('span', { class: 'actions' },
-          F.hasLabs(c) ? el('button', { type: 'button', onclick: async () => { await makeAttachments([c]); select(c); } }, '檢驗資料 PDF') : null,
+          el('button', { type: 'button', onclick: async () => { await makeAttachments([c]); select(c); } }, '檢驗資料 PDF'),
           el('label', { class: 'done-toggle' }, doneBox, '已完成 TFDA 通報')),
         warnings.length ? el('ul', { class: 'messages' }, ...warnings.map(w => el('li', { class: 'warn' }, w))) : null),
       ...sections.map(s => el('section', { class: 'panel tf-section' },
         el('h3', { class: 'tf-tab' }, s.tab),
+        // Said once here instead of in every drug block.
+        s.drugs ? el('p', { class: 'tf-hint tf-drug-note' }, '每個藥品按 TFDA「新增藥品」依序填入。',
+          el('span', { id: 'drugNotice' })) : null,
         ...(s.drugs || []).map(drugBlock),
         s.drugs && !s.drugs[0].list.length ? el('div', { class: 'tf-hint warn' }, '沒有可疑藥品資料') : null,
         el('div', { class: 'tf-grid' }, ...s.fields.map(f => field(f))))));
@@ -519,7 +536,7 @@
   }
 
   async function makeAttachments(list, { open = list.length === 1 } = {}) {
-    list = list.filter(F.hasLabs);
+    if (!list.length) return;
     const status = $('pdfStatus');
     status.textContent = '產生中…';
     try {
@@ -542,7 +559,8 @@
         }
         if (open) window.open(URL.createObjectURL(blob), '_blank');
       }
-      status.textContent = folder ? `已儲存 ${saved.length} 個：${saved.join('、')}` : `已下載 ${saved.length} 個`;
+      status.textContent = folder ? `已儲存 ${saved.length} 個到 ${[...new Set(saved.map(n => n.split('\\')[0]))].join('、')}` : `已下載 ${saved.length} 個`;
+      status.title = saved.join('\n');
       toast(`檢驗資料 PDF：${saved.length} 個`);
     } catch (e) {
       status.textContent = '產生失敗：' + e.message;

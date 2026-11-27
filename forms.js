@@ -277,10 +277,16 @@
   const LAB_NOTE_MAX = 250;
 
   // Text for TFDA's 檢驗說明 when the lab results go in an attachment.
+  // Every case gets the attachment (it says 無 when there is nothing). A
+  // 檢查描述 too long for 檢驗說明 is left to the attachment as well.
   function labNoteText(c) {
     const parts = [];
-    if (!isNone(c.labs)) parts.push(`檢驗數據詳見附件 ${attachmentName(c)}。`);
-    if (!isNone(c.labNote)) parts.push(c.labNote);
+    const note = isNone(c.labNote) ? '' : c.labNote;
+    const longNote = note.length > LAB_NOTE_MAX - 40;
+    if (!isNone(c.labs) && longNote) parts.push(`檢驗數據與檢查描述詳見附件 ${attachmentName(c)}。`);
+    else if (!isNone(c.labs)) parts.push(`檢驗數據詳見附件 ${attachmentName(c)}。`);
+    else if (longNote) parts.push(`檢查描述詳見附件 ${attachmentName(c)}。`);
+    if (note && !longNote) parts.push(note);
     return parts.join('\n');
   }
 
@@ -295,8 +301,8 @@
   }
 
   const attachmentName = c => `ADR_${c.id}_檢驗資料.pdf`;
-  // 檢查描述 alone fits in 檢驗說明, so only lab data needs an attachment.
-  const hasLabs = c => !isNone(c.labs);
+  // Whether the case has lab data or a 檢查描述 (the attachment says so).
+  const hasLabs = c => !isNone(c.labs) || !isNone(c.labNote);
 
   // Everything the TFDA form asks for, grouped by its tabs. A field is either
   // text to paste ({ text }) or a choice to click ({ options, pick }).
@@ -339,7 +345,7 @@
           { label: '不良反應後續結果', options: OUTCOMES, pick: pickOutcome(c.outcome), raw: c.outcome },
         ] },
         { tab: 'Reaction Information(2)', fields: [
-          { label: '檢驗結果', text: '', hint: isNone(c.labs) ? '無檢驗數據，不需新增' : `不用逐筆新增，改上傳附件 ${attachmentName(c)}` },
+          { label: '檢驗結果', text: '', hint: isNone(c.labs) ? '無檢驗數據，不需新增' : '不用逐筆新增（見附件）' },
           { label: '檢驗說明', text: note, long: true, max: LAB_NOTE_MAX },
           { label: '其他相關資料', text: isNone(c.other) ? '' : c.other, long: true },
         ] },
@@ -351,7 +357,7 @@
           { label: 'Naranjo score（參考）', text: [c.naranjoScore, c.naranjo].filter(Boolean).join('　') },
         ] },
         { tab: 'Upload Attachment', fields: [
-          hasLabs(c) ? { label: '附件', attachment: true } : { label: '附件', text: '', hint: '無檢驗資料，不需附件' },
+          { label: '附件', attachment: true, hint: hasLabs(c) ? '' : '本案沒有檢驗資料，附件內容為「無」' },
         ] },
       ],
     };

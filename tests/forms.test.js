@@ -147,3 +147,21 @@ test('a header row is found by its columns, and empty results are explained', ()
   assert.equal(F.readCases([['病歷號', '姓名'], ['000000001A', 'X']], none).length, 0);
   assert.equal(none.headers, 0);
 });
+
+test('every case gets the attachment; a long 檢查描述 goes into it', () => {
+  const base = F.readCases([HEADER_A, rowA])[0];
+  const field = (c, label) => F.tfdaSections(c).sections.flatMap(s => s.fields).find(f => f.label === label);
+  // Lab details only in a 檢查描述 too long for TFDA's 檢驗說明 (250).
+  const longNote = Object.assign({}, base, { labs: '', labNote: 'CBC：' + '正常範圍內。'.repeat(50) });
+  assert.equal(field(longNote, '檢驗說明').text, `檢查描述詳見附件 ADR_1151001_檢驗資料.pdf。`);
+  assert.ok(!F.tfdaSections(longNote).warnings.some(w => /檢驗說明/.test(w)));
+  assert.ok(F.hasLabs(longNote));
+  // Nothing at all: still an attachment, which says 無.
+  const none = Object.assign({}, base, { labs: '無', labNote: '無' });
+  assert.equal(F.hasLabs(none), false);
+  assert.equal(field(none, '附件').attachment, true);
+  assert.deepEqual(F.attachmentContent(none).blocks.map(b => b.text), ['無', '無']);
+  // A short 檢查描述 still goes straight into 檢驗說明.
+  const short = Object.assign({}, base, { labs: '無', labNote: '胸部X光正常' });
+  assert.equal(field(short, '檢驗說明').text, '胸部X光正常');
+});

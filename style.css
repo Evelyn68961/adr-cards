@@ -184,7 +184,9 @@ button:disabled { opacity: .4; cursor: default; }
 .copy { display: block; width: 100%; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafb; color: var(--text); border: 1px solid var(--border); padding: 6px 10px; min-height: 34px; font-variant-numeric: tabular-nums; }
 .copy:hover { border-color: var(--accent); background: #eef6f6; }
 .copy.long { max-height: 220px; overflow-y: auto; }
-.copy.empty { color: var(--muted); cursor: default; }
+.copy.empty { color: var(--muted); cursor: default; min-height: 0; width: auto; display: inline-block; padding: 1px 8px; font-size: .8rem; border-style: dashed; background: transparent; }
+.tf-drug-note { margin: 0 0 10px; }
+.tf-drug-note .warn { color: var(--warn-text); font-weight: 600; }
 .copy.used { border-color: var(--ok-text); }
 .copy.copied { background: var(--ok-bg); border-color: var(--accent); }
 .tf-drugs { display: grid; gap: 12px; margin-bottom: 12px; }
@@ -362,3 +364,9 @@ button:disabled { opacity: .4; cursor: default; }
 .ov-phone .qr svg, .ov-phone .qr img { width: 100%; height: 100%; display: block; }
 .ov-phone-text { flex: 1; min-width: 240px; display: grid; gap: 8px; }
 .ov-phone-text p { margin: 0; }
+
+/* TFDA helper: source summary */
+.source-status { margin: 8px 0 0; }
+.source-warn { color: var(--warn-text); }
+.source-files summary { cursor: pointer; width: max-content; }
+.source-files div { padding-left: 1em; }
