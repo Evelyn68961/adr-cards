@@ -201,7 +201,9 @@
 
   async function readPdf(bytes) {
     const pdfjs = await loadPdfJs();
-    const doc = await pdfjs.getDocument({ data: bytes }).promise;
+    // pdf.js takes over (detaches) the bytes it is given, which emptied the
+    // caller's copy: an uploaded PDF was then saved as a 0-byte file.
+    const doc = await pdfjs.getDocument({ data: bytes.slice() }).promise;
     const pages = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
