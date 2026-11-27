@@ -358,7 +358,7 @@
   }
 
   function field(f, his = { codes: [], single: false }) {
-    const row = el('div', { class: 'tf-field' + (f.long ? ' wide' : '') + (f.hospital ? ' wide' : '') },
+    const row = el('div', { class: 'tf-field' + (f.long || f.hospital || f.attachment ? ' wide' : '') },
       el('div', { class: 'tf-label' }, f.label));
     if (f.hospital && folder) {
       row.append(hospitalBlock(f, his));
@@ -523,13 +523,15 @@
         await makeAttachments([c], { open: true });
         show();
       });
+      // One row: file name (click to copy), open, make again; one short line under it.
       box.replaceChildren(
-        copyable(name),
+        el('div', { class: 'tf-attachment-row' },
+          copyable(name),
+          file ? el('button', { type: 'button', onclick: () => window.open(URL.createObjectURL(file), '_blank') }, '開啟 PDF') : null,
+          make),
         el('div', { class: 'tf-hint' + (file ? '' : ' warn') },
-          file ? `已產生，位置：${folder.name}\\${dirName}\\${name}。在 TFDA 按「新增附件」，選這個檔案上傳。`
-            : folder ? `尚未產生。按下方按鈕，會存到 ${folder.name}\\${dirName}\\ 並開啟。` : '尚未產生。按下方按鈕下載。'),
-        el('div', { class: 'actions' }, make,
-          file ? el('button', { type: 'button', onclick: () => window.open(URL.createObjectURL(file), '_blank') }, '開啟 PDF') : null));
+          file ? `在 TFDA 按「新增附件」，選 ${dirName} 資料夾裡的這個檔案。`
+            : folder ? `尚未產生，會存到 ${dirName} 資料夾。` : '尚未產生，按右邊按鈕下載。'));
     };
     show();
     return box;
