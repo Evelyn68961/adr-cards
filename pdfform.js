@@ -162,6 +162,9 @@
           await new Promise((resolve, reject) => {
             const s = document.createElement('script');
             s.src = PDFJS + 'pdf.min.js';
+            // The exact published files only: a changed copy (CDN, proxy) is refused.
+            s.integrity = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+            s.crossOrigin = 'anonymous';
             s.onload = resolve;
             s.onerror = () => reject(fail());
             // A blocked site can leave the request hanging: give up after a while.
@@ -170,7 +173,8 @@
           });
         }
         // A worker from another site must be started from a local copy.
-        const res = await fetch(PDFJS + 'pdf.worker.min.js', { signal: AbortSignal.timeout(LOAD_TIMEOUT) }).catch(() => { throw fail(); });
+        const res = await fetch(PDFJS + 'pdf.worker.min.js', { signal: AbortSignal.timeout(LOAD_TIMEOUT),
+          integrity: 'sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2' }).catch(() => { throw fail(); });
         if (!res.ok) throw new Error('PDF 讀取元件無法載入');
         root.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([await res.text()], { type: 'text/javascript' }));
         return root.pdfjsLib;
@@ -233,8 +237,9 @@
     }
     return cache;
   }
-  async function readCached(name, bytes) {
-    const key = name + '|' + bytes.length;
+  // `modified` (the file's date) tells a corrected PDF of the same size apart.
+  async function readCached(name, bytes, modified = '') {
+    const key = name + '|' + bytes.length + '|' + modified;
     const map = cacheMap();
     if (!map.has(key)) {
       map.set(key, await readPdf(bytes));

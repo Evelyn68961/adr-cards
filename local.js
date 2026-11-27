@@ -9,6 +9,20 @@
   const q = path => '?path=' + encodeURIComponent(path);
   const join = (dir, name) => (dir ? dir + '/' + name : name);
 
+  // The version (modified time) of each file as last read, so a save can
+  // say what it is based on and the helper can refuse it if another page
+  // saved in between (instead of silently dropping that save).
+  const readVersion = new Map();
+
+  // Saves on this page run one after another, never interleaved: each reads
+  // the workbook, changes it and writes it back.
+  let queue = Promise.resolve();
+  function serial(fn) {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => {});
+    return run;
+  }
+
   function notFound(path) {
     const e = new Error(path + ' not found');
     e.name = 'NotFoundError';
@@ -42,6 +56,7 @@
         const res = await call('api/file' + q(path));
         if (!res) throw notFound(path);
         const lastModified = Number(res.headers.get('X-File-Modified')) || Date.now();
+        if (res.headers.get('X-File-Modified')) readVersion.set(path, res.headers.get('X-File-Modified'));
         return new File([await res.blob()], name, { lastModified });
       },
       // The day it was last saved, without downloading it.
@@ -54,7 +69,13 @@
         const parts = [];
         return {
           async write(data) { parts.push(data); },
-          async close() { await call('api/file' + q(path), { method: 'PUT', body: new Blob(parts) }); },
+          async close() {
+            const headers = Object.assign({}, HEADERS, readVersion.has(path) ? { 'X-Based-On': readVersion.get(path) } : {});
+            const res = await call('api/file' + q(path), { method: 'PUT', body: new Blob(parts), headers });
+            const saved = res && res.headers.get('Content-Type') === 'application/json' ? await res.json() : null;
+            if (saved && saved.modified) readVersion.set(path, String(saved.modified));
+            else readVersion.delete(path);
+          },
         };
       },
     };
@@ -141,5 +162,5 @@
     throw err;
   }
 
-  root.ADRLocal = { detect, workbookFile };
+  root.ADRLocal = { detect, workbookFile, serial };
 })(window);

@@ -7,6 +7,8 @@
   const inNode = typeof module !== 'undefined' && module.exports;
   const P = inNode ? require('./parse.js') : root.ADRParse;
   const F = inNode ? require('./forms.js') : root.ADRForms;
+  // Cuts a sheet's used area back to its data (see workbook.js), if loaded.
+  const fitRange = (XLSX, ws) => { const W = inNode ? require('./workbook.js') : root.ADRWorkbook; if (W) W.fitRange(XLSX, ws); };
 
   const CHART_NO = /^\d{9}[A-Z]$/;
   const ID = /^\d{7}$/;
@@ -21,6 +23,7 @@
     const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
     const out = [];
     wb.SheetNames.filter(n => /^\d{6}$/.test(n)).forEach(name => {
+      fitRange(XLSX, wb.Sheets[name]);
       XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' }).forEach(r => {
         const chartNo = str(r[1]).toUpperCase();
         if (!CHART_NO.test(chartNo)) return;

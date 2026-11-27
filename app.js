@@ -633,7 +633,9 @@
 
   // Writes every typed name into ADR通報.xlsx in one go and says plainly
   // whether it worked.
-  async function saveWriters() {
+  function saveWriters() { return window.ADRLocal.serial(saveWritersNow); }
+
+  async function saveWritersNow() {
     if (!pendingWriters.size || writerSaving) return;
     if (saving) {
       $('writerStatus').textContent = '正在存入卡片，請稍後再按一次「儲存撰寫人」。';
@@ -695,7 +697,9 @@
 
   let saveRequested = false;
 
-  async function saveToFolder() {
+  function saveToFolder() { return window.ADRLocal.serial(saveToFolderNow); }
+
+  async function saveToFolderNow() {
     // One click: link if needed, then re-sync with Excel so the numbers are
     // current (unless the user typed a start number) before writing anything.
     if (saveRequested) return;  // a second click while saving

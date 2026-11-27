@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -147,17 +148,27 @@ def repair_workbook():
         stored = before > 2_000_000 and any(info.compress_type == zipfile.ZIP_STORED for info, _ in parts)
         if not changed and not stored:
             return
-        tmp = path + '.adrtmp'
-        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as dst:
-            for name, data in out:
-                dst.writestr(name, data)
-        backup(path)
-        os.replace(tmp, path)
+        with WRITE_LOCK:
+            fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix='.adrtmp')
+            os.close(fd)
+            with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as dst:
+                for name, data in out:
+                    dst.writestr(name, data)
+            backup(path)
+            os.replace(tmp, path)
         return log_repair(f'{WORKBOOK} 已瘦身：{before // 1024} KB → {os.path.getsize(path) // 1024} KB（備份在 backups）')
     except PermissionError:
-        return log_repair(f'{WORKBOOK} 太大但沒辦法瘦身：檔案在 Excel 中開著，關閉後重新開啟 ADR 通報卡')
+        return log_repair(f'{WORKBOOK} 需要修復但檔案正被其他程式使用（Excel 或雲端硬碟同步）：稍後重新開啟 ADR 通報卡會再試')
     except Exception as e:  # never stop the app from starting
         return log_repair(f'{WORKBOOK} 瘦身失敗：{type(e).__name__}: {e}')
+
+
+# One write to the ADR folder at a time (pages save in parallel threads).
+WRITE_LOCK = threading.RLock()
+
+
+def mtime_ms(path):
+    return int(os.path.getmtime(path) * 1000)
 
 
 def log_repair(message):
@@ -214,9 +225,18 @@ class Handler(SimpleHTTPRequestHandler):
 
     # ---- API ----
 
+    # Never served as static files: workbook backups (patient data), the
+    # git folder, logs and this helper's own settings.
+    PRIVATE = re.compile(r'^/(backups|\.git|\.claude|__pycache__|tests|tools)(/|$)|\.(log|txt|py|adrtmp)$', re.I)
+
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
         if not url.path.startswith('/api/'):
+            # Only this app, under its own address: a page on another site that
+            # points its name at 127.0.0.1 (DNS rebinding) gets nothing.
+            path = urllib.parse.unquote(url.path)
+            if self.headers.get('Host') != f'{HOST}:{PORT}' or self.PRIVATE.search(path):
+                return self.reply(403, 'forbidden')
             return super().do_GET()
         if not self.allowed():
             return self.reply(403, 'forbidden')
@@ -254,7 +274,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/octet-stream')
                 self.send_header('Content-Length', str(len(data)))
-                self.send_header('X-File-Modified', str(int(os.path.getmtime(path) * 1000)))
+                self.send_header('X-File-Modified', str(mtime_ms(path)))
                 self.end_headers()
                 self.wfile.write(data)
                 return
@@ -316,22 +336,28 @@ class Handler(SimpleHTTPRequestHandler):
             path = self.target(url.query)
             data = self.rfile.read(int(self.headers.get('Content-Length', 0)))
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            tmp = path + '.adrtmp'
-            with open(tmp, 'wb') as f:
-                f.write(data)
-            refused = too_big(path, len(data))
-            if refused:
-                os.remove(tmp)
-                log_repair(refused)
-                return self.reply(409, '存檔異常：' + refused + '。已取消存檔並保留原檔，請聯絡管理者。')
-            try:
-                if path.lower().endswith('.xlsx') and os.path.isfile(path):
-                    backup(path)
-                os.replace(tmp, path)
-            except PermissionError:
-                os.remove(tmp)
-                return self.reply(409, '檔案被其他程式開啟中（請先關閉 Excel）')
-            return self.reply(200)
+            with WRITE_LOCK:
+                # The page says which version of the file its change is based
+                # on; if another page saved in between, refuse rather than
+                # silently drop that save.
+                base = self.headers.get('X-Based-On')
+                if base and os.path.isfile(path) and str(mtime_ms(path)) != base:
+                    return self.reply(409, '檔案剛被另一個頁面存過，這次沒有存入：請再按一次（會用最新的檔案）。')
+                refused = too_big(path, len(data))
+                if refused:
+                    log_repair(refused)
+                    return self.reply(409, '存檔異常：' + refused + '。已取消存檔並保留原檔，請聯絡管理者。')
+                fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), suffix='.adrtmp')
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(data)
+                try:
+                    if path.lower().endswith('.xlsx') and os.path.isfile(path):
+                        backup(path)
+                    os.replace(tmp, path)
+                except PermissionError:
+                    os.remove(tmp)
+                    return self.reply(409, '檔案被其他程式開啟中（請先關閉 Excel）')
+            return self.reply(200, json.dumps({'modified': mtime_ms(path)}), 'application/json')
         except Exception as e:
             return self.reply(500, f'{type(e).__name__}: {e}')
 

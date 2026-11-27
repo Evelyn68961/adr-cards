@@ -101,7 +101,8 @@
   async function readPdfs(pdfs, forms, names) {
     for (const f of pdfs) {
       try {
-        const c = await window.ADRPdfForm.readCached(f.name, await bytesOf(await (await f.dir.getFileHandle(f.name)).getFile()));
+        const file = await (await f.dir.getFileHandle(f.name)).getFile();
+        const c = await window.ADRPdfForm.readCached(f.name, await bytesOf(file), file.lastModified);
         if (c && /^\d{7}$/.test(c.id)) { forms.push([c]); names.push(f.path); }
       } catch (e) { /* the PDF reader could not load: Excel exports still count */ }
     }
@@ -179,7 +180,9 @@
 
   // Writes the queued marks into the workbook in one go. With picked files
   // there is no folder to write to: the marked copy is offered as a download.
-  async function saveMarks() {
+  function saveMarks() { return window.ADRLocal.serial(saveMarksNow); }
+
+  async function saveMarksNow() {
     if (!pendingMarks.size) return;
     if (markSaving) { markTimer = setTimeout(saveMarks, 600); return; }
     if (!folder && !picked) {
@@ -394,6 +397,9 @@
       loadQrLib.promise = new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = QR_LIB;
+        // The exact published file only: a changed copy (CDN, proxy) is refused.
+        s.integrity = 'sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k';
+        s.crossOrigin = 'anonymous';
         s.onload = resolve;
         s.onerror = () => { loadQrLib.promise = null; reject(new Error('QR code 元件無法載入（沒有網路？）')); };
         document.head.appendChild(s);

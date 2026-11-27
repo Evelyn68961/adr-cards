@@ -293,8 +293,11 @@
     // A month sheet that only held such a copy (e.g. 201609) goes too.
     emptied.forEach(name => {
       if (existingRows(XLSX, wb.Sheets[name], P).aoa.some(r => /^\d{9}[A-Z]$/i.test(String(r[1]).trim()))) return;
+      const at = wb.SheetNames.indexOf(name);
       delete wb.Sheets[name];
-      wb.SheetNames.splice(wb.SheetNames.indexOf(name), 1);
+      wb.SheetNames.splice(at, 1);
+      // Per-sheet settings (e.g. hidden) are matched by position.
+      if (wb.Workbook && Array.isArray(wb.Workbook.Sheets)) wb.Workbook.Sheets.splice(at, 1);
       removedSheets.push(name);
     });
 

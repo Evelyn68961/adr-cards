@@ -71,8 +71,8 @@
     stats: { headers: c ? 1 : 0, rows: c ? 1 : 0, noId: c && !/^\d{7}$/.test(c.id) ? 1 : 0 },
   });
 
-  async function readAny(name, bytes) {
-    return PDF.test(name) ? pdfResult(await window.ADRPdfForm.readCached(name, bytes)) : readFile(bytes);
+  async function readAny(name, bytes, modified) {
+    return PDF.test(name) ? pdfResult(await window.ADRPdfForm.readCached(name, bytes, modified)) : readFile(bytes);
   }
 
   function readFile(bytes) {
@@ -112,7 +112,7 @@
       try {
         const file = await (await f.dir.getFileHandle(f.name)).getFile();
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const result = await readAny(f.name, bytes);
+        const result = await readAny(f.name, bytes, file.lastModified);
         if (result.cases.length) lists.push(result.cases);
         if (result.cases.length || FORM_FILE.test(f.name) || result.stats.headers) lines.push(describe(f.path, result));
       } catch (e) {
@@ -146,6 +146,7 @@
     try {
       const file = await window.ADRLocal.workbookFile(await folder.getFileHandle(WORKBOOK_NAME));
       const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+      wb.SheetNames.forEach(n => W.fitRange(XLSX, wb.Sheets[n]));
       for (const n of wb.SheetNames) {
         for (const r of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })) {
           const id = String(r[0]).trim();
@@ -269,7 +270,7 @@
     const saved = [];
     for (const f of files) {
       const bytes = new Uint8Array(await f.arrayBuffer());
-      const result = await readAny(f.name, bytes);
+      const result = await readAny(f.name, bytes, f.lastModified);
       lines.push(describe(f.name, result));
       if (!result.cases.length) continue;
       lists.push(result.cases);
@@ -449,6 +450,11 @@
     if (day) tfdaDates.set(c.id, day); else tfdaDates.delete(c.id);
     renderList();
     if (!folder) { toast('沒有連到 ADR 資料夾：只記在這個瀏覽器'); if (day) done.add(caseKey(c)); saveDone(); return; }
+    // One save at a time: quick ticks must not overwrite each other.
+    return window.ADRLocal.serial(() => saveTfda(c, day));
+  }
+
+  async function saveTfda(c, day) {
     try {
       const handle = await folder.getFileHandle(WORKBOOK_NAME);
       const result = W.setTfdaDates(XLSX, new Uint8Array(await (await window.ADRLocal.workbookFile(handle)).arrayBuffer()), new Map([[c.id, day]]));
@@ -475,6 +481,12 @@
     const dayBox = el('input', { class: 'tfda-day', placeholder: 'YYYY/MM/DD', autocomplete: 'off', 'aria-label': 'TFDA 通報日期' });
     dayBox.value = reportDay(c);
     if (pdfDates.has(c.id) && !tfdaDates.has(c.id)) dayBox.title = `ADR_${c.id}_通報.pdf 的存檔日期`;
+    // Reported per the saved ADR_<識別碼>_通報.pdf: that file is the record, so
+    // the tick can't be undone here (it would come back on the next look).
+    if (pdfDates.has(c.id)) {
+      doneBox.disabled = true;
+      doneBox.title = `已有 ADR_${c.id}_通報.pdf，所以算已通報`;
+    }
     dayBox.hidden = !doneBox.checked;
     doneBox.addEventListener('change', () => {
       if (doneBox.checked && !dayBox.value) dayBox.value = slashDay(new Date());
