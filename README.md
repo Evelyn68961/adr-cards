@@ -29,6 +29,11 @@ folder built in, so nothing ever has to be linked or allowed.
   found, or there is no internet. Git is looked for on the PATH and in the usual Git for Windows,
   Cmder and GitHub Desktop folders. The page links show the version being served, and the
   reason in red when the last update was skipped or failed (also in `update.log`).
+- **Repairs an oversized workbook:** an older version saved every month sheet with width entries
+  for all 16,384 columns, uncompressed (~1 MB per sheet; a 30 MB `ADR通報.xlsx` crashed every save
+  in the browser). On start the helper cuts those entries back to columns A–Z and stores the file
+  compressed, after copying it to `backups\`; cells are untouched. `update.log` says what it did.
+  Saves from the page are compressed too.
 - The helper only listens on 127.0.0.1, only answers requests carrying the page's own header,
   and only touches files inside the ADR folder.
 

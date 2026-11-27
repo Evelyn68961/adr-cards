@@ -42,7 +42,7 @@
         ws['!cols'] = ws['!cols'].slice(0, XLSX.utils.decode_range(ws['!ref']).e.c + 1);
       }
     });
-    return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true }));
+    return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xlsx', cellStyles: true, compression: true }));
   }
 
   // Excel stores whole seconds; SheetJS can return x.999s for them.

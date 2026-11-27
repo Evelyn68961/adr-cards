@@ -19,6 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+import zipfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 HOST, PORT = '127.0.0.1', 8770
@@ -46,6 +47,76 @@ def backup(path):
     old = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith(stem + '_'))
     for f in old[:-BACKUPS_KEPT]:
         os.remove(os.path.join(BACKUP_DIR, f))
+
+
+WORKBOOK = 'ADR通報.xlsx'
+# Column widths Excel can hold per sheet; a sheet listing far more than its
+# used columns was written by an old version of the page (one entry for all
+# 16,384 columns per sheet, uncompressed): ~1 MB per month sheet, enough to
+# make every save in the browser crash.
+COLS = re.compile(rb'<cols>(.*?)</cols>', re.S)
+COL = re.compile(rb'<col\b[^>]*?\bmin="(\d+)"[^>]*?\bmax="(\d+)"[^>]*/>')
+KEEP_COLS = 26
+
+
+def slim_cols(xml):
+    """Keeps the width entries of columns A-Z only; None if nothing to cut."""
+    m = COLS.search(xml)
+    if not m or m.group(1).count(b'<col') <= KEEP_COLS * 2:
+        return None
+    kept = []
+    for col in COL.finditer(m.group(1)):
+        lo, hi = int(col.group(1)), int(col.group(2))
+        if lo > KEEP_COLS:
+            continue
+        entry = col.group(0)
+        if hi > KEEP_COLS:
+            entry = entry.replace(b'max="%d"' % hi, b'max="%d"' % KEEP_COLS, 1)
+        kept.append(entry)
+    body = b'<cols>' + b''.join(kept) + b'</cols>' if kept else b''
+    return xml[:m.start()] + body + xml[m.end():]
+
+
+def repair_workbook():
+    """Cuts the bloat out of ADR通報.xlsx (see COLS), after a backup, and
+    stores it compressed. Only column widths change; every cell stays."""
+    try:
+        path = os.path.join(read_adr_dir(), WORKBOOK)
+        if not os.path.isfile(path) or os.path.getsize(path) < 2_000_000:
+            return
+        before = os.path.getsize(path)
+        changed = False
+        with zipfile.ZipFile(path) as src:
+            parts = [(info, src.read(info.filename)) for info in src.infolist()]
+        out = []
+        for info, data in parts:
+            if re.match(r'xl/worksheets/sheet\d+\.xml$', info.filename):
+                slim = slim_cols(data)
+                if slim is not None:
+                    data, changed = slim, True
+            out.append((info.filename, data))
+        stored = any(info.compress_type == zipfile.ZIP_STORED for info, _ in parts)
+        if not changed and not stored:
+            return
+        tmp = path + '.adrtmp'
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as dst:
+            for name, data in out:
+                dst.writestr(name, data)
+        backup(path)
+        os.replace(tmp, path)
+        log_repair(f'{WORKBOOK} 已瘦身：{before // 1024} KB → {os.path.getsize(path) // 1024} KB（備份在 backups）')
+    except PermissionError:
+        log_repair(f'{WORKBOOK} 太大但沒辦法瘦身：檔案在 Excel 中開著，關閉後重新開啟 ADR 通報卡')
+    except Exception as e:  # never stop the app from starting
+        log_repair(f'{WORKBOOK} 瘦身失敗：{type(e).__name__}: {e}')
+
+
+def log_repair(message):
+    try:
+        with open(UPDATE_LOG, 'a', encoding='utf-8') as f:
+            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} {message}\n')
+    except OSError:
+        pass
 
 
 def read_adr_dir():
@@ -340,6 +411,7 @@ def main(open_browser=True, replace=False):
         args = [a for a in sys.argv[1:] if a != '--replace'] + ['--replace']
         subprocess.Popen([sys.executable, os.path.abspath(__file__), *args], cwd=APP_DIR, creationflags=NO_WINDOW)
         return
+    repair_workbook()
     try:
         server = Server((HOST, PORT), Handler)
     except OSError:
