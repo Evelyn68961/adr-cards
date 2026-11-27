@@ -4,7 +4,7 @@ Newest first. Each entry has a number; act on entries newer than the last one yo
 then reply with SendMessage to adr-card (session_01DtAW5YFXw4i7xmXk5WALwj) and say which number you handled.
 
 ## 2 — 2026-11-27
-Pushed bef0b9e… (see `git log origin/main -1`): repair/refusal/backup-doubling notes now go to
+Pushed 0946de8 to main: repair/refusal/backup-doubling notes now go to
 notes.log (appended, last 200 lines) instead of update.log (rewritten at each start), and a recent
 warning shows in red in each page's header; the all-month 檢驗資料 button asks before overwriting.
 Please: git pull origin main, restart the helper (server.py changed), confirm notes.log survives a
