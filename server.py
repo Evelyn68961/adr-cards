@@ -104,11 +104,11 @@ def repair_workbook():
                 dst.writestr(name, data)
         backup(path)
         os.replace(tmp, path)
-        log_repair(f'{WORKBOOK} 已瘦身：{before // 1024} KB → {os.path.getsize(path) // 1024} KB（備份在 backups）')
+        return log_repair(f'{WORKBOOK} 已瘦身：{before // 1024} KB → {os.path.getsize(path) // 1024} KB（備份在 backups）')
     except PermissionError:
-        log_repair(f'{WORKBOOK} 太大但沒辦法瘦身：檔案在 Excel 中開著，關閉後重新開啟 ADR 通報卡')
+        return log_repair(f'{WORKBOOK} 太大但沒辦法瘦身：檔案在 Excel 中開著，關閉後重新開啟 ADR 通報卡')
     except Exception as e:  # never stop the app from starting
-        log_repair(f'{WORKBOOK} 瘦身失敗：{type(e).__name__}: {e}')
+        return log_repair(f'{WORKBOOK} 瘦身失敗：{type(e).__name__}: {e}')
 
 
 def log_repair(message):
@@ -117,6 +117,7 @@ def log_repair(message):
             f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} {message}\n')
     except OSError:
         pass
+    return message
 
 
 def read_adr_dir():
@@ -217,9 +218,15 @@ class Handler(SimpleHTTPRequestHandler):
             return self.reply(502, f'院內藥品資料庫連不上：{e}')
 
     def do_POST(self):
-        # A newer copy of this helper asks the running one to make way.
-        if urllib.parse.urlsplit(self.path).path != '/api/quit' or not self.allowed():
+        path = urllib.parse.urlsplit(self.path).path
+        if not self.allowed():
             return self.reply(403, 'forbidden')
+        if path == '/api/repair':
+            # The page found ADR通報.xlsx too big to handle: shrink it now.
+            return self.reply(200, repair_workbook() or '', 'text/plain; charset=utf-8')
+        if path != '/api/quit':
+            return self.reply(403, 'forbidden')
+        # A newer copy of this helper asks the running one to make way.
         self.reply(200)
         threading.Thread(target=self.server.shutdown, daemon=True).start()
 

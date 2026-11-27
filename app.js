@@ -515,7 +515,7 @@
     const token = ++ledgerToken;
     try {
       const book = await existingFile(folder, WORKBOOK_NAME);
-      const bytes = book ? new Uint8Array(await (await book.getFile()).arrayBuffer()) : null;
+      const bytes = book ? new Uint8Array(await (await window.ADRLocal.workbookFile(book)).arrayBuffer()) : null;
       const next = bytes ? W.readLedger(window.XLSX, P, bytes) : { months: {}, ids: new Map(), owners: new Map() };
       const keys = new Set([
         ...Object.values(next.months).map(m => m.key),
@@ -648,7 +648,7 @@
     try {
       const handle = await existingFile(folder, WORKBOOK_NAME);
       if (!handle) throw new Error(`找不到 ${WORKBOOK_NAME}`);
-      const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+      const bytes = new Uint8Array(await (await window.ADRLocal.workbookFile(handle)).arrayBuffer());
       const result = W.setWriters(window.XLSX, bytes, batch);
       if (result.changed.length) await writeFile(folder, WORKBOOK_NAME, result.bytes);
       batch.forEach((name, id) => { if (pendingWriters.get(id) === name) pendingWriters.delete(id); });
@@ -721,7 +721,7 @@
 
       // 1. Excel: append new cases, overwrite the ones already there.
       const fileHandle = await existingFile(folder, WORKBOOK_NAME);
-      const original = fileHandle ? new Uint8Array(await (await fileHandle.getFile()).arrayBuffer()) : null;
+      const original = fileHandle ? new Uint8Array(await (await window.ADRLocal.workbookFile(fileHandle)).arrayBuffer()) : null;
       const result = W.appendRows(window.XLSX, P, original, cards.map(excelRow));
       if (result.added.length || result.updated.length || result.removed.length) {
         try {

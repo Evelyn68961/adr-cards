@@ -142,7 +142,7 @@
     const map = new Map();
     tfdaDates = new Map();
     try {
-      const file = await (await folder.getFileHandle('ADR通報.xlsx')).getFile();
+      const file = await window.ADRLocal.workbookFile(await folder.getFileHandle(WORKBOOK_NAME));
       const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
       for (const n of wb.SheetNames) {
         for (const r of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' })) {
@@ -447,7 +447,7 @@
     if (!folder) { toast('沒有連到 ADR 資料夾：只記在這個瀏覽器'); if (day) done.add(caseKey(c)); saveDone(); return; }
     try {
       const handle = await folder.getFileHandle(WORKBOOK_NAME);
-      const result = W.setTfdaDates(XLSX, new Uint8Array(await (await handle.getFile()).arrayBuffer()), new Map([[c.id, day]]));
+      const result = W.setTfdaDates(XLSX, new Uint8Array(await (await window.ADRLocal.workbookFile(handle)).arrayBuffer()), new Map([[c.id, day]]));
       if (result.missing.length) { toast(`${WORKBOOK_NAME} 中沒有 ${c.id}，日期沒有存入`); return; }
       if (result.changed.length) {
         const w = await handle.createWritable();

@@ -117,5 +117,22 @@
     else showVersion();
   }
 
-  root.ADRLocal = { detect };
+  // ADR通報.xlsx as a File, never one too big to handle in the browser: an
+  // old version could leave it over 30 MB, and reading or saving that
+  // crashed the page (STATUS_BREAKPOINT). A big one is shrunk by the desktop
+  // helper first (/api/repair); if that is not possible, a clear error.
+  const BIG = 4 * 1024 * 1024;
+  async function workbookFile(handle) {
+    let file = await handle.getFile();
+    if (file.size <= BIG) return file;
+    try { await call('api/repair', { method: 'POST' }); } catch (e) { /* older helper: no repair */ }
+    file = await handle.getFile();
+    if (file.size <= BIG) return file;
+    const err = new Error(`ADR通報.xlsx 有 ${(file.size / 1048576).toFixed(0)} MB，太大，在瀏覽器裡存取會當掉。` +
+      '請先關閉 Excel，再關掉 ADR 通報卡視窗、從桌面捷徑重新開啟（會自動把檔案縮小，原檔備份在 backups）。');
+    err.name = 'WorkbookTooBig';
+    throw err;
+  }
+
+  root.ADRLocal = { detect, workbookFile };
 })(window);

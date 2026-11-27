@@ -70,7 +70,7 @@
     let cases = [];
     const names = [];
     try {
-      const book = await (await folder.getFileHandle(WORKBOOK_NAME)).getFile();
+      const book = await window.ADRLocal.workbookFile(await folder.getFileHandle(WORKBOOK_NAME));
       cases = R.workbookCases(XLSX, await bytesOf(book));
       names.push(WORKBOOK_NAME);
     } catch (e) {
@@ -188,7 +188,7 @@
     const cells = new Map([...batch].map(([id, marked]) => [id, marked ? W.MARKED : '']));
     try {
       const handle = folder && await folder.getFileHandle(WORKBOOK_NAME);
-      const bytes = folder ? await bytesOf(await handle.getFile()) : picked.bytes;
+      const bytes = folder ? await bytesOf(await window.ADRLocal.workbookFile(handle)) : picked.bytes;
       const result = W.setNotes(XLSX, bytes, cells);
       if (result.changed.length) {
         if (folder) {
